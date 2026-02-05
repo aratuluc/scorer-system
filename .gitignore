@@ -1,0 +1,25 @@
+# Secrets
+.env
+.env.local
+
+#Local Config
+.vscode
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
+# Node/React
+node_modules/
+dist/
+.eslintcache
+
+# Database
+*.sqlite
+*.db
+
+# OS files
+.DS_Store
+Thumbs.db
