@@ -1,11 +1,17 @@
 from typing import List
 from typing import Optional
-from sqlalchemy import ForeignKey
-from sqlalchemy import String
+from sqlalchemy import ForeignKey, String
 from .database import Base
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
 from sqlalchemy.orm import relationship
+import enum
+from sqlalchemy import Enum
+
+class Status(enum.Enum):
+    LIVE="live"
+    NS="not started"
+    FT="full time"
 
 class League(Base):
     __tablename__ = "league"
@@ -21,6 +27,8 @@ class League(Base):
         back_populates="league", cascade="all, delete-orphan"
     )
 
+    players: Mapped[List["Player"]] = relationship("Player", back_populates="league")
+
 class LeagueLink(Base):
     __tablename__ = "league_link"
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -33,6 +41,7 @@ class Match(Base):
     __tablename__ = "match"
     id: Mapped[int] = mapped_column(primary_key=True)
     league_id: Mapped[int] = mapped_column(ForeignKey("league.id"))
+    status: Mapped[Status] = mapped_column(default=Status.NS)
     fixture_week: Mapped[int]
     scored_week: Mapped[Optional[int]]
     home_team: Mapped[str]
@@ -56,6 +65,9 @@ class Player(Base):
     predictions: Mapped[List["Prediction"]] = relationship(
         back_populates="player", cascade="all, delete-orphan"
     )
+    league = relationship("League", back_populates="players")
+
+    league_id: Mapped[int] = mapped_column(ForeignKey("league.id"))
 
 class Prediction(Base):
     __tablename__= "prediction"
@@ -69,3 +81,4 @@ class Prediction(Base):
     
     home_pred: Mapped[Optional[int]]
     away_pred: Mapped[Optional[int]]
+    points: Mapped[Optional[int]]

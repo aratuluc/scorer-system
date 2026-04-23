@@ -1,6 +1,6 @@
 // src/components/CreateLeagueModal.jsx
 import { useState } from "react";
-import { createLeague } from "../services/api";
+import { createLeague } from "../../services/api";
 
 // We pass 'onClose' to close the window, and 'onLeagueCreated' to update the list
 function CreateLeagueModal({ onClose, onLeagueCreated }) {

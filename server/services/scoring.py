@@ -1,4 +1,12 @@
 from functools import lru_cache
+from operator import and_
+from shlex import join
+import requests
+import json
+from sqlalchemy import func, or_
+from sqlalchemy.orm import Session, joinedload
+import re
+from .. import models, schemas
 
 
 def main():
@@ -42,6 +50,30 @@ def evaluate_score(true_home:int, true_away:int, prediction_home:int, prediction
   if true_away == prediction_away:
     total += 1
   return total
+
+def finalize(league_id: int, db: Session):
+    unfinalized_predictions = (
+        db.query(models.Prediction)
+        .join(models.Match) 
+        .options(joinedload(models.Prediction.match))
+        .filter(
+            models.Match.league_id == league_id,
+            models.Match.status == models.Status.FT,
+            models.Prediction.points.is_(None)
+        )
+        .all()
+    )
+    
+    for prediction in unfinalized_predictions:
+        prediction.points = evaluate_score(
+            prediction.match.home_score,
+            prediction.match.away_score,
+            prediction.home_pred,
+            prediction.away_pred,
+        )
+    
+    db.commit()
+    return len(unfinalized_predictions)
 
 if __name__ == "__main__":
     main()

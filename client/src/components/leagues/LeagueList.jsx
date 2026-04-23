@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { getLeagues } from "../services/api";
+import { getLeagues } from "../../services/api";
 import CreateLeagueModal from "./CreateLeagueModal";
 import { Link } from "react-router-dom";
-import Header from "./Header";
+import Header from "../common/Header";
 
 function LeagueList() {
   const [leagues, setLeagues] = useState([]);

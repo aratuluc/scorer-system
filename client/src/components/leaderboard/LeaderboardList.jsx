@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import Header from "./Header";
+import Header from "../common/Header";
 import { Link } from "react-router-dom";
-import { getLeagues } from "../services/api";
+import { getLeagues } from "../../services/api";
 
 function LeaderboardList() {
   const [leagues, setLeagues] = useState([]);
