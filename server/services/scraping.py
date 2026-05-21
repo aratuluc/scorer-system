@@ -63,6 +63,9 @@ def initialize_matches(db: Session, league:models.League):
     db.commit()
     return len(matches)
 
+def initialize_weeks(db:Session, league:models.League):
+    return
+
 def refresh_all_weeks(league_id:int, db:Session):
     count = 0
     is_live = False

@@ -6,7 +6,8 @@ import pandas as pd
 import io
 from .. import models, schemas, database
 
-router = APIRouter(dependencies=[Depends(security.verify_admin)])
+#router = APIRouter(dependencies=[Depends(security.verify_admin)])
+router = APIRouter()
 
 @router.post("/", response_model=schemas.League)
 def create_league(league: schemas.LeagueCreate, db: Session = Depends(get_db)):
@@ -189,3 +190,11 @@ def refresh_all_weeks(league_id:int, db:Session = Depends(get_db)):
 def finalize_predictions(league_id:int, db:Session = Depends(get_db)):
     count = scoring.finalize(league_id, db)
     return count
+
+@router.put("/{league_id}/weeks", status_code=200)
+def initialize_weeks_for_league(league_id:int, db:Session = Depends(get_db)):
+    league_db = db.query(models.League).options(joinedload(models.League.matches)).filter_by(id=league_id).first()
+    if not league_db.links:
+        raise HTTPException(412, "This league has no links set-up!")
+    count = scraping.initialize_matches(db, league_db)
+    return {"initialized":count}

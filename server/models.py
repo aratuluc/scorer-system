@@ -34,8 +34,14 @@ class LeagueLink(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     league_id: Mapped[int] = mapped_column(ForeignKey("league.id"))
     link: Mapped[str]
+    alias: Mapped[str]
     
     league: Mapped["League"] = relationship(back_populates="links")
+
+    # Correctly tracking competition-scoped timelines
+    weeks: Mapped[List["Week"]] = relationship(
+        back_populates="league_link", cascade="all, delete-orphan"
+    )
 
 class Match(Base):
     __tablename__ = "match"
@@ -50,6 +56,10 @@ class Match(Base):
     away_score: Mapped[Optional[int]]
     
     league: Mapped["League"] = relationship(back_populates="matches")
+
+    # Correctly linked to the competition week
+    week_id: Mapped[Optional[int]] = mapped_column(ForeignKey("week.id"))
+    week: Mapped[Optional["Week"]] = relationship(back_populates="matches")
     
     predictions: Mapped[List["Prediction"]] = relationship(
         back_populates="match", cascade="all, delete-orphan"
@@ -66,7 +76,6 @@ class Player(Base):
         back_populates="player", cascade="all, delete-orphan"
     )
     league = relationship("League", back_populates="players")
-
     league_id: Mapped[int] = mapped_column(ForeignKey("league.id"))
 
 class Prediction(Base):
@@ -76,9 +85,21 @@ class Prediction(Base):
     match_id: Mapped[int] = mapped_column(ForeignKey("match.id"))
     
     player: Mapped["Player"] = relationship(back_populates="predictions")
-    
     match: Mapped["Match"] = relationship(back_populates="predictions")
     
     home_pred: Mapped[Optional[int]]
     away_pred: Mapped[Optional[int]]
     points: Mapped[Optional[int]]
+
+class Week(Base):
+    __tablename__ = "week"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    week_num: Mapped[int] 
+    date: Mapped[str]   
+    
+    league_link_id: Mapped[int] = mapped_column(ForeignKey("league_link.id"))
+    league_link: Mapped["LeagueLink"] = relationship(back_populates="weeks")
+    
+    matches: Mapped[List["Match"]] = relationship(
+        back_populates="week", cascade="all, delete-orphan"
+    )

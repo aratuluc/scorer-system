@@ -31,8 +31,10 @@ def evaluate_score(true_home:int, true_away:int, prediction_home:int, prediction
 
   total = 0
   if true_home==prediction_home and true_away==prediction_away:
-    if true_home+true_away >= 5:
+    
+    if true_home + true_away >= 5 and result != "draw":
           total += 5
+          
     match abs(true_home-true_away):
       case 0:
         total += 7
@@ -40,15 +42,19 @@ def evaluate_score(true_home:int, true_away:int, prediction_home:int, prediction
           total += 5
       case _ if abs(true_home-true_away) >= 2:
           total += 7
+          
     return total
+  
   elif result == prediction_result:
     total += 2
     if abs(true_home-true_away) == abs(prediction_home-prediction_away):
       total += 1
+      
   if true_home == prediction_home:
     total += 1
   if true_away == prediction_away:
     total += 1
+    
   return total
 
 def finalize(league_id: int, db: Session):

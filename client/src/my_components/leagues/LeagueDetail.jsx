@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { getLinks, getLeague } from "../../services/api";
+import { Button } from "@/components/ui/button";
 import Header from "../common/Header";
 import CsvUploader from "../prediction-upload/CsvUploader";
 import PlayerList from "../player/PlayerList";
@@ -61,14 +62,15 @@ function LeagueDetail() {
       </div>
 
       <h3 className="mt-10 font-bold text-lg border-t p-2 pt-4">Links</h3>
-      <div className="flex">
+
+      <Button size="lg">
         <Link
           className="block border round shadow bg-white px-4 py-2  hover:bg-gray-100"
           to={"./scrape"}
         >
           <span>Go To Scraping Overview</span>
         </Link>
-      </div>
+      </Button>
     </div>
   );
 }

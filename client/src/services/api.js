@@ -102,3 +102,7 @@ export const getLeaderboard = async (league_id, weeknum) => {
   });
   return response.data;
 };
+
+export const initializeWeeksAPI = async (league_id) => {
+  const response = await api.get(``);
+};

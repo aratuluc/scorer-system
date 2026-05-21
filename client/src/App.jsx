@@ -1,9 +1,9 @@
-import LeagueList from "./components/leagues/LeagueList";
-import LeagueDetail from "./components/leagues/LeagueDetail";
-import ScrapingOverview from "./components/leagues/ScrapingOverview";
+import LeagueList from "./my_components/leagues/LeagueList";
+import LeagueDetail from "./my_components/leagues/LeagueDetail";
+import ScrapingOverview from "./my_components/leagues/ScrapingOverview";
 
-import LeaderboardList from "./components/leaderboard/LeaderboardList";
-import Leaderboard from "./components/leaderboard/Leaderboard";
+import LeaderboardList from "./my_components/leaderboard/LeaderboardList";
+import Leaderboard from "./my_components/leaderboard/Leaderboard";
 
 import { Routes, Route } from "react-router-dom";
 
