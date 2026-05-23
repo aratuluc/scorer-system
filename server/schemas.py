@@ -76,8 +76,8 @@ class PlayerLeaderboard(Player):
 #=== PREDICTION ===
 
 class PredictionBase(BaseModel): 
-    home_pred: int
-    away_pred: int
+    home_pred: Optional[int]
+    away_pred: Optional[int]
 
 class PredictionCreate(PredictionBase): ...
 

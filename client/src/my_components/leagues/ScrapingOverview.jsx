@@ -9,6 +9,7 @@ import {
   finalizePredictions,
   initializeWeeksAPI,
   fetchAllScores,
+  autofillPredictionsAPI,
 } from "../../services/api";
 import Header from "../common/Header";
 import ControlButton from "../common/ControlButton";
@@ -157,6 +158,28 @@ function ScrapingOverview() {
     }
   };
 
+  const autofillPredictions = async () => {
+    actionButtonHelper("autofill", "Trying to autofill predictions...", "info");
+
+    try {
+      const response = await autofillPredictionsAPI(id);
+      setCurrentStatusText(
+        `Successfully generated ${response.filled} predictions.`,
+      );
+    } catch (error) {
+      setCurrentStatusText("Error occured while trying to autofill");
+      setPanelStatus("error");
+    } finally {
+      setLoadingAction(null);
+    }
+  };
+
+  const actionButtonHelper = (actionCode, actionMessage, panelAction) => {
+    setLoadingAction(actionCode);
+    setCurrentStatusText(actionMessage);
+    setPanelStatus(panelAction);
+  };
+
   return (
     <div className="mt-8 border-t border-border pt-4">
       <div className="grid grid-cols-3 items-center mb-6">
@@ -210,6 +233,12 @@ function ScrapingOverview() {
             icon={"*"}
             disabled={loadingAction !== null}
             onClick={onFinalize}
+          />
+          <ControlButton
+            text={"Auto-fill predictions"}
+            icon={"9"}
+            disabled={loadingAction !== null}
+            onClick={autofillPredictions}
           />
         </div>
 

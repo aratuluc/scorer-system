@@ -117,3 +117,8 @@ export const fetchAllScores = async (league_id) => {
   const response = await api.put(`/leagues/${league_id}/matches/`);
   return response.data;
 };
+
+export const autofillPredictionsAPI = async (league_id) => {
+  const response = await api.post(`/leagues/${league_id}/predictions:autofill`);
+  return response.data;
+};

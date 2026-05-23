@@ -86,7 +86,8 @@ def process_weekly_csv(db: Session, league_id: int, df: pd.DataFrame, week_num: 
                     player_id=player_id,
                     match_id=match_id,
                     home_pred=home,
-                    away_pred=away
+                    away_pred=away,
+                    scored_week=week_num
                 )
                 db.add(new_pred)
                 count += 1

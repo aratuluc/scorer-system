@@ -1,5 +1,7 @@
 from shlex import join
 
+from sqlalchemy import null
+
 from ..services import scraping, csv_handler, scoring, security
 from ..database import engine, get_db
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, responses
@@ -206,3 +208,32 @@ def initialize_matches_for_league(league_id:int, db:Session = Depends(get_db)):
         raise HTTPException(412, "This league has no links set-up!")
     count = scraping.initialize_matches(db, league_db)
     return {"initialized":count}
+
+@router.post("/{league_id}/predictions:autofill", status_code=200)
+def autofill_predictions(league_id:int, db:Session = Depends(get_db)):
+    i = 0
+
+    league_db = db.query(models.League)\
+    .options(joinedload(models.League.players))\
+    .filter(models.League.id == league_id).first()
+
+    matches = db.query(models.Match).options(joinedload(models.Match.predictions))\
+        .filter(models.Match.league_id == league_id, models.Match.scored_week != None)
+    
+    all_player_ids = {player.id for player in league_db.players}
+
+    for match in matches:
+        predicted_player_ids = {pred.player_id for pred in match.predictions}
+        
+        for p_id in all_player_ids:
+            if p_id not in predicted_player_ids:
+                new_pred = models.Prediction(
+                    player_id=p_id, 
+                    match_id=match.id, 
+                    home_pred=None, 
+                    away_pred=None 
+                )
+                db.add(new_pred)
+                i += 1
+    db.commit()
+    return {"filled": i}

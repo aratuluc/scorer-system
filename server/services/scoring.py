@@ -14,6 +14,14 @@ def main():
 
 @lru_cache(maxsize=None)
 def evaluate_score(true_home:int, true_away:int, prediction_home:int, prediction_away:int):
+  if(prediction_home == None): 
+     prediction_home = 3
+
+  if(prediction_away == None): 
+     prediction_away = 3
+    
+
+
   if true_home>true_away:
      result = "home"
   elif true_away>true_home:
