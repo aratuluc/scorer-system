@@ -96,6 +96,7 @@ class Week(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     week_num: Mapped[int] 
     date: Mapped[str]   
+    hasPassed: Mapped[bool]
     
     league_link_id: Mapped[int] = mapped_column(ForeignKey("league_link.id"))
     league_link: Mapped["LeagueLink"] = relationship(back_populates="weeks")

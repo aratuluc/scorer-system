@@ -63,14 +63,19 @@ function LeagueDetail() {
 
       <h3 className="mt-10 font-bold text-lg border-t p-2 pt-4">Links</h3>
 
-      <Button size="lg">
-        <Link
-          className="block border round shadow bg-white px-4 py-2  hover:bg-gray-100"
-          to={"./scrape"}
-        >
-          <span>Go To Scraping Overview</span>
-        </Link>
-      </Button>
+      <div className="flex gap-4">
+        <Button size="lg">
+          <Link className="" to={"./scrape"}>
+            <span>Go To Scraping Overview</span>
+          </Link>
+        </Button>
+
+        <Button size="lg">
+          <Link className="" to={"./weeks"}>
+            <span>Go To Week Overview</span>
+          </Link>
+        </Button>
+      </div>
     </div>
   );
 }

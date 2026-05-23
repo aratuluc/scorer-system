@@ -1,3 +1,5 @@
+from shlex import join
+
 from ..services import scraping, csv_handler, scoring, security
 from ..database import engine, get_db
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, responses
@@ -150,14 +152,6 @@ def get_matches_for_league(league_id:int, week: int | None = None, db:Session = 
 
     return query.all()
 
-@router.put("/{league_id}/matches", status_code=200)
-def initialize_matches_for_league(league_id:int, db:Session = Depends(get_db)):
-    league_db = db.query(models.League).options(joinedload(models.League.matches)).filter_by(id=league_id).first()
-    if not league_db.links:
-        raise HTTPException(412, "This league has no links set-up!")
-    count = scraping.initialize_matches(db, league_db)
-    return {"initialized":count}
-
 @router.get("/{league_id}/predictions", response_model=list[schemas.Prediction])
 def get_predictions(league_id:int, week: int | None = None, player: str | None = None, db:Session = Depends(get_db)):
 
@@ -177,12 +171,12 @@ def add_unknown_fix(league_id: int, fix_data:list[schemas.UnknownFix], db:Sessio
     return {"text": f"Successfully created {result["new"]}, updated {result["update"]}"}
 
 @router.put("/{league_id}/weeks/{week_num}/matches")
-def refresh_week(league_id:int, week_num: int, db:Session = Depends(get_db)):
+def fetch_scores_for_week(league_id:int, week_num: int, db:Session = Depends(get_db)):
     count, is_live = scraping.save_results_for_week(week_num, league_id, db)
     return {"count": count, "is_live": is_live}
 
 @router.put("/{league_id}/matches/")
-def refresh_all_weeks(league_id:int, db:Session = Depends(get_db)):
+def fetch_scores(league_id:int, db:Session = Depends(get_db)):
     count, is_live = scraping.refresh_all_weeks(league_id, db)
     return {"count": count, "is_live": is_live}
 
@@ -193,6 +187,20 @@ def finalize_predictions(league_id:int, db:Session = Depends(get_db)):
 
 @router.put("/{league_id}/weeks", status_code=200)
 def initialize_weeks_for_league(league_id:int, db:Session = Depends(get_db)):
+    league_db = db.query(models.League).options(joinedload(models.League.matches)).filter_by(id=league_id).first()
+    if not league_db.links:
+        raise HTTPException(412, "This league has no links set-up!")
+    count = scraping.initialize_weeks(db, league_db)
+    return {"initialized":count}
+
+@router.get("/{league_id}/weeks", response_model=list[schemas.Week])
+def get_weeks(league_id:int, db:Session = Depends(get_db)):
+
+    query = db.query(models.Week).join(models.LeagueLink).options(joinedload(models.Week.matches)).filter(models.LeagueLink.league_id == league_id)
+    return query.all()
+
+@router.put("/{league_id}/matches", status_code=200)
+def initialize_matches_for_league(league_id:int, db:Session = Depends(get_db)):
     league_db = db.query(models.League).options(joinedload(models.League.matches)).filter_by(id=league_id).first()
     if not league_db.links:
         raise HTTPException(412, "This league has no links set-up!")

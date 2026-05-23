@@ -104,5 +104,16 @@ export const getLeaderboard = async (league_id, weeknum) => {
 };
 
 export const initializeWeeksAPI = async (league_id) => {
-  const response = await api.get(``);
+  const response = await api.put(`/leagues/${league_id}/weeks`);
+  return response.data;
+};
+
+export const getWeeks = async (league_id) => {
+  const response = await api.get(`/leagues/${league_id}/weeks`);
+  return response.data;
+};
+
+export const fetchAllScores = async (league_id) => {
+  const response = await api.put(`/leagues/${league_id}/matches/`);
+  return response.data;
 };

@@ -6,6 +6,7 @@ import LeaderboardList from "./my_components/leaderboard/LeaderboardList";
 import Leaderboard from "./my_components/leaderboard/Leaderboard";
 
 import { Routes, Route } from "react-router-dom";
+import WeekOverview from "./my_components/leagues/WeekOverview";
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
           <Route path="/leagues" element={<LeagueList />} />
           <Route path="/leagues/:id" element={<LeagueDetail />} />
           <Route path="/leagues/:id/scrape" element={<ScrapingOverview />} />
+          <Route path="/leagues/:id/weeks" element={<WeekOverview />} />
 
           <Route path="/" element={<LeaderboardList />} />
           <Route path="/leaderboard/:id" element={<Leaderboard />} />

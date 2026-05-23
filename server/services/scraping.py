@@ -5,44 +5,54 @@ from sqlalchemy.orm import Session, joinedload
 import re
 from .. import models, schemas
 
-def calculate_current_week(db: Session, league_id:int):
-    max_week = db.query(func.max(models.Match.scored_week))\
-    .filter(models.Match.league_id == league_id)\
+ENDPOINT = "https://arsiv.mackolik.com/AjaxHandlers/FixtureHandler.aspx"
+
+def calculate_current_week(db: Session, link_id:int):
+    max_week = db.query(func.max(models.Week.week_num))\
+    .filter(models.Week.league_link_id == link_id)\
     .scalar()
 
     if max_week is None:
         max_week = 0
     return max_week
 
-def get_all_fixture_week_map(endpoint: str):
+def get_all_fixture_week_map(endpoint: models.LeagueLink):
     matches = []
     i = 1
-    print(f"Starting the initalization process.")
+    print(f"Starting the initialization process for {endpoint.alias or endpoint.link}")
     while True:
-        data_point = f"{endpoint}&week={i}"
-        response = requests.get(data_point)
+        response = requests.get(ENDPOINT, {"command":"getMatches", "id":endpoint.link, "week":i})
 
         if(response.status_code != 200):
             raise Exception(f"Failed to retrieve data for week {i}")
         
+        # Fixed the signature mismatch here
         games = parse_matches_for_week(response.text, i)
 
         if not games:
             print(f"Stopped at week {i-1}")
             break
 
+        # Tag every game with its source link ID before adding to the pile
+        for game in games:
+            game["league_link_id"] = endpoint.id
+
         matches += games
         i+=1
     return matches
 
-def parse_matches_for_week(text:str, weeknum:int) -> list[str]:
+def parse_matches_for_week(text:str, weeknum:int) -> list[dict]:
     text = re.sub(r",{2,}", ",", text)
     text = text.replace(",,", ",")
     text = text.replace("'", '"')
     week = []
     lst = json.loads(text)
     for mac in lst:
-        week.append({"fixture_week":weeknum, "home_team":normalize_team_name(mac[4]), "away_team":normalize_team_name(mac[6])})
+        week.append({
+            "fixture_week": weeknum, 
+            "home_team": normalize_team_name(mac[4]), 
+            "away_team": normalize_team_name(mac[6])
+        })
     return week
         
 def normalize_team_name(raw_name):
@@ -51,20 +61,49 @@ def normalize_team_name(raw_name):
 def extract_all_matches(endpoints:list[str]):
     matches = []
     for endpoint in endpoints:
-        matches += get_all_fixture_week_map(endpoint.link)
+        matches += get_all_fixture_week_map(endpoint)
     return matches
 
-def initialize_matches(db: Session, league:models.League):
+def initialize_matches(db: Session, league: models.League):
     league.matches.clear()
-    db.commit()
-    matches = extract_all_matches(league.links)
-    model_matches = [models.Match(**match, league_id=league.id) for match in matches]
+    db.flush() 
+
+    db_weeks = db.query(models.Week).join(models.LeagueLink).filter(models.LeagueLink.league_id == league.id).all()
+    
+    week_map = {(w.league_link_id, w.week_num): w.id for w in db_weeks}
+
+    raw_matches = extract_all_matches(league.links)
+    
+    model_matches = []
+    for match_dict in raw_matches:
+        link_id = match_dict.pop("league_link_id")
+        week_num = match_dict["fixture_week"]
+        
+        match_dict["week_id"] = week_map.get((link_id, week_num))
+        match_dict["league_id"] = league.id
+        
+        model_matches.append(models.Match(**match_dict))
+        
     db.add_all(model_matches)
     db.commit()
-    return len(matches)
+    
+    return len(model_matches)
 
 def initialize_weeks(db:Session, league:models.League):
-    return
+
+
+    links = league.links
+    for link in links:
+        link.weeks.clear()
+        db.flush() 
+        response = requests.get(ENDPOINT, {"command":"getWeeks", "id":link.link})
+        if(response.status_code != 200):
+            raise Exception(f"Failed while trying to initialize weeks for league {link.link}")
+        weeks = parse_week_text(response.text)
+        model_weeks = [models.Week(**week, league_link_id=link.id) for week in weeks]
+        db.add_all(model_weeks)
+        db.commit()
+    return len(model_weeks)
 
 def refresh_all_weeks(league_id:int, db:Session):
     count = 0
@@ -74,14 +113,13 @@ def refresh_all_weeks(league_id:int, db:Session):
                     .options(joinedload(models.League.matches), joinedload(models.League.links))
                     .filter(models.League.id == league_id).first())
 
-    match_map = {(a.home_team, a.away_team, a.fixture_week):a for a in league_db.matches}
+    match_map = {(a.home_team, a.away_team, a.week.week_num):a for a in league_db.matches}
 
     for endpoint in league_db.links:
-        for week_num in range(calculate_current_week(db, league_id)):
+        for week_num in range(calculate_current_week(db, endpoint.id)+1):
 
-            response = requests.get(f"{endpoint.link}&week={week_num}")
+            response = requests.get(ENDPOINT, {"command":"getMatches", "id":endpoint.link, "week":week_num})
             lst = clean_response(response.text)
-
             for mac in lst:
 
                 status = get_match_status(mac[2])
@@ -197,6 +235,11 @@ def clean_response(response_text:str)->list:
     response_text = response_text.replace(",,", ",")
     response_text = response_text.replace("'", '"')
     return json.loads(response_text)
+
+def parse_week_text(text: str) -> list:
+    text = text.replace("'", '"');
+    week_list = json.loads(text)
+    return [{"week_num": week[0], "date":f"{week[1]}-{week[2]}", "hasPassed": week[3] == 1} for week in week_list]
 
 def get_incomplete_weeks(db: Session):
     results = (

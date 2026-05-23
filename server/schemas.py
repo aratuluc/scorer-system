@@ -52,8 +52,7 @@ class Match(MatchBase):
     
     # Nested competition week tracking details
     week_id: Optional[int] = None
-    week: Optional["Week"] = None
-    
+
     model_config = {"from_attributes": True}
 
 #=== PLAYER ===
@@ -128,6 +127,7 @@ class WeekCreate(WeekBase): ...
 class Week(WeekBase):
     id: int
     matches: List["Match"] = []
+    hasPassed: bool
     model_config = {"from_attributes": True}
 
 #=== ETC === 

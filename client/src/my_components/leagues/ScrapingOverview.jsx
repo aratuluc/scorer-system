@@ -7,6 +7,8 @@ import {
   deleteLink,
   initializeLeague,
   finalizePredictions,
+  initializeWeeksAPI,
+  fetchAllScores,
 } from "../../services/api";
 import Header from "../common/Header";
 import ControlButton from "../common/ControlButton";
@@ -26,6 +28,13 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoIcon } from "lucide-react";
+import {
+  Alert,
+  AlertAction,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/ui/alert";
 
 function ScrapingOverview() {
   const { id } = useParams();
@@ -120,7 +129,9 @@ function ScrapingOverview() {
       // Assuming initializeWeeksAPI is wired up in your api.js layer
       const response = await initializeWeeksAPI(id);
       setCurrentStatusText(
-        response ? `Initialized ${response} weeks.` : "Initialized weeks.",
+        response
+          ? `Initialized ${response.initialized} weeks.`
+          : "Initialized weeks.",
       );
     } catch (error) {
       setCurrentStatusText("Failed to initialize weeks.");
@@ -130,9 +141,24 @@ function ScrapingOverview() {
     }
   };
 
+  const fetchScores = async () => {
+    setLoadingAction("fetchAll");
+    setCurrentStatusText("Fetching scores for all weeks...");
+    setPanelStatus("info");
+
+    try {
+      const response = await fetchAllScores(id);
+      setCurrentStatusText(`Found scores for ${response.count} matches`);
+    } catch (error) {
+      setCurrentStatusText("Failed to fetch scores...");
+      setPanelStatus("error");
+    } finally {
+      setLoadingAction(null);
+    }
+  };
+
   return (
     <div className="mt-8 border-t border-border pt-4">
-      {/* Navigation Layer */}
       <div className="grid grid-cols-3 items-center mb-6">
         <Link
           to="./.."
@@ -146,17 +172,19 @@ function ScrapingOverview() {
         />
       </div>
 
-      {/* Response Display Notification Deck */}
       {statusText && (
-        <InfoPanel
-          onDismiss={() => setCurrentStatusText(null)}
-          status={panelStatus}
+        <Alert
+          onClick={() => setCurrentStatusText("")}
+          className={panelStatus === "error" ? "bg-red-100" : ""}
         >
-          {statusText}
-        </InfoPanel>
+          <AlertDescription
+            className={`text-lg ${panelStatus === "error" ? "text-red-900" : ""}`}
+          >
+            {statusText}
+          </AlertDescription>
+        </Alert>
       )}
 
-      {/* Primary Commands Pipeline */}
       <div className="pt-4 mt-4">
         <div className="mb-6 flex gap-3">
           <ControlButton
@@ -167,13 +195,19 @@ function ScrapingOverview() {
           />
           <ControlButton
             text={"Initialize Matches"}
-            icon={"🔄"}
+            icon={"✳️"}
             disabled={loadingAction !== null}
             onClick={onInitialize}
           />
           <ControlButton
+            text={"Fetch all Scores"}
+            icon={"🔄"}
+            disabled={loadingAction !== null}
+            onClick={fetchScores}
+          />
+          <ControlButton
             text={"Finalize Predictions"}
-            icon={"Base"}
+            icon={"*"}
             disabled={loadingAction !== null}
             onClick={onFinalize}
           />

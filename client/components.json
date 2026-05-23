@@ -3,10 +3,10 @@
   "style": "radix-lyra",
   "rsc": false,
   "tsx": false,
-  "tailwind": {
-    "config": "tailwind.config.js",
+"tailwind": {
+    "config": "", 
     "css": "src/index.css",
-    "baseColor": "neutral",
+    "baseColor": "zinc",
     "cssVariables": true,
     "prefix": ""
   },
@@ -22,4 +22,5 @@
   "menuColor": "default-translucent",
   "menuAccent": "subtle",
   "registries": {}
+  
 }
