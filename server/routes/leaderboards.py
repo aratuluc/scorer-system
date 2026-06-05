@@ -12,3 +12,14 @@ router = APIRouter()
 @router.get("/{league_id}")
 def get_leaderboard(league_id:int, week:int|None = None, db:Session = Depends(get_db)):
     return lb_handler.get_leaderboard(league_id, db, week=week)
+
+@router.get("/{league_id}/weeks", response_model=list[schemas.WeekScored])
+def get_weeks(league_id:int, type:str, db:Session = Depends(get_db)):
+
+    if type == "scored":
+        query = db.query(models.Week).join(models.LeagueLink).options(joinedload(models.Week.matches)).filter(models.LeagueLink.league_id == league_id)
+        return query.all()
+    else:
+        query = db.query(models.Week).join(models.LeagueLink).options(joinedload(models.Week.matches)).filter(models.LeagueLink.league_id == league_id)
+        return query.all()
+

@@ -1,6 +1,6 @@
 from typing import List
 from typing import Optional
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import Boolean, ForeignKey, String, true
 from .database import Base
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
@@ -28,6 +28,7 @@ class League(Base):
     )
 
     players: Mapped[List["Player"]] = relationship("Player", back_populates="league")
+    is_active_for_scraping: Mapped[bool] = False
 
 class LeagueLink(Base):
     __tablename__ = "league_link"
@@ -64,6 +65,34 @@ class Match(Base):
     predictions: Mapped[List["Prediction"]] = relationship(
         back_populates="match", cascade="all, delete-orphan"
     )
+
+class StagingMatch(Base): 
+    __tablename__ = "staging_match"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    league_id: Mapped[int] = mapped_column(ForeignKey("league.id"))
+
+    scored_week: Mapped[Optional[int]]
+    home_team: Mapped[str]
+    away_team: Mapped[str]    
+    
+    staging_predictions: Mapped[List["StagingPredictions"]] = relationship(
+        back_populates="staging_match", cascade="all, delete-orphan"
+    )
+
+class StagingPredictions(Base):
+    __tablename__= "staging_predictions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    player_id: Mapped[int] = mapped_column(ForeignKey("player.id"))
+    staging_match_id: Mapped[int] = mapped_column(ForeignKey("staging_match.id"))
+    
+    # One-way relationship: StagingPrediction can easily access the Player's name, 
+    player: Mapped["Player"] = relationship() 
+    
+    staging_match: Mapped["StagingMatch"] = relationship(back_populates="staging_predictions")
+    
+    home_pred: Mapped[Optional[int]]
+    away_pred: Mapped[Optional[int]]
+
 
 
 class Player(Base):

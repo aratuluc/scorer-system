@@ -1,4 +1,4 @@
-export default function LeaderboardPlayer({ playerData }) {
+export default function LeaderboardPlayer({ playerData, rank, onClick }) {
   const determineColor = (rank) => {
     if (rank === 1) return "#FFD700"; // Gold
     if (rank === 2) return "#C0C0C0"; // Silver
@@ -7,12 +7,14 @@ export default function LeaderboardPlayer({ playerData }) {
   };
 
   return (
-    <div
-      className="flex justify-between items-center rounded-full py-1 px-4"
-      style={{ backgroundColor: determineColor(playerData.rank) }}
-    >
-      <span className="font-bold text-xl">{playerData.name}</span>
-      <span className="font-bold">{playerData.points}</span>
-    </div>
+    <button onClick={() => onClick(playerData.id)}>
+      <div className="flex bg-gray-200 hover:bg-gray-300 transition-transform hover:translate-x-2 justify-between items-center rounded-full py-1 px-4">
+        <span>
+          <span className="font-semibold text-l text-gray-700">{rank}. </span>
+          <span className="font-bold text-xl">{playerData.name}</span>
+        </span>
+        <span className="font-bold">{playerData.points}</span>
+      </div>
+    </button>
   );
 }

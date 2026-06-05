@@ -1,8 +1,11 @@
 from shlex import join
+from turtle import mode
+from typing import List
 
 from sqlalchemy import null
 
-from ..services import scraping, csv_handler, scoring, security
+
+from ..services import scraping, csv_handler, scoring, security, league_services
 from ..database import engine, get_db
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, responses
 from sqlalchemy.orm import Session, joinedload
@@ -10,8 +13,8 @@ import pandas as pd
 import io
 from .. import models, schemas, database
 
-#router = APIRouter(dependencies=[Depends(security.verify_admin)])
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(security.verify_admin)])
+#router = APIRouter()
 
 @router.post("/", response_model=schemas.League)
 def create_league(league: schemas.LeagueCreate, db: Session = Depends(get_db)):
@@ -139,9 +142,12 @@ def delete_player(league_id:int, player_id:int,db: Session = Depends(get_db)):
     return {"ok":True}
 
 @router.get("/{league_id}/matches", response_model=list[schemas.Match])
-def get_matches_for_league(league_id:int, week: int | None = None, db:Session = Depends(get_db)):
+def get_matches_for_league(league_id:int, week: int | None = None, unset: bool = None ,db:Session = Depends(get_db)):
 
     query = db.query(models.Match).filter(models.Match.league_id == league_id)
+
+    if unset == True:
+        query = query.filter(models.Match.scored_week == None)
     
     if week:
         query = query.filter(models.Match.fixture_week == week)
@@ -196,10 +202,13 @@ def initialize_weeks_for_league(league_id:int, db:Session = Depends(get_db)):
     return {"initialized":count}
 
 @router.get("/{league_id}/weeks", response_model=list[schemas.Week])
-def get_weeks(league_id:int, db:Session = Depends(get_db)):
+def get_weeks(league_id:int, type:str, db:Session = Depends(get_db)):
 
-    query = db.query(models.Week).join(models.LeagueLink).options(joinedload(models.Week.matches)).filter(models.LeagueLink.league_id == league_id)
-    return query.all()
+    if type == "scored":
+        query = db.query(models.Week).join(models.LeagueLink).options(joinedload(models.Week.matches)).filter(models.LeagueLink.league_id == league_id)
+        return query.all()
+    else:
+        return {"status":400}
 
 @router.put("/{league_id}/matches", status_code=200)
 def initialize_matches_for_league(league_id:int, db:Session = Depends(get_db)):
@@ -237,3 +246,27 @@ def autofill_predictions(league_id:int, db:Session = Depends(get_db)):
                 i += 1
     db.commit()
     return {"filled": i}
+
+@router.patch("/{league_id}/fix")
+def apply_league_fixes(
+    league_id: int,
+    payload: dict, 
+    type: str,                      
+    db: Session = Depends(get_db)
+):
+    if type == "unsetMatches":
+        
+        return league_services.handle_unset_fix(league_id, db, payload)
+    
+    return {"message": "Invalid fix type"}
+
+@router.put("/{league_id}/scraping")
+def enable_scraping_for_league(league_id: int, status: bool, db: Session = Depends(get_db)):
+    league = db.get(models.League, league_id)
+    league.is_active_for_scraping = status
+    db.commit()
+    return {"message": "Successfully updated the scraping status."}
+
+@router.get("/{league_id}/staging-matches")
+def get_staging_matches(league_id:int, db:Session = Depends(get_db)):
+    return db.query(models.StagingMatch).filter(models.StagingMatch.league_id == league_id).all()

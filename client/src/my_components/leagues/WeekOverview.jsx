@@ -8,6 +8,7 @@ import { getLinks } from "@/services/api";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import Header from "../common/Header";
+import { cn } from "@/lib/utils";
 
 function WeekOverview() {
   const { id } = useParams();
@@ -74,9 +75,14 @@ function WeekOverview() {
 
 function MatchResultRow({ match }) {
   return (
-    <div key={match.id} className="grid grid-cols-3">
+    <div key={match.id} className="grid grid-cols-3 divide-y py-1 items-center">
       <span>{match.home_team}</span>
-      <div className="font-bold flex justify-center gap-2">
+      <div
+        className={cn(
+          "font-bold flex justify-center gap-2",
+          match.status == "live" && "text-red-600",
+        )}
+      >
         <span>{match.home_score ?? "N/A"}</span>
         <span>-</span>
         <span>{match.away_score ?? "N/A"}</span>

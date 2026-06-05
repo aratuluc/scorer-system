@@ -1,3 +1,4 @@
+
 from .database import engine
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,8 +7,8 @@ from . import models, schemas, database
 from dotenv import load_dotenv
 import os
 import requests
-from .services import cron
-from .routes import leagues, leaderboards
+from .services import cron, security
+from .routes import leagues, leaderboards, auth, predictions
 
 load_dotenv()
 origins = os.getenv("ALLOWED_ORIGINS", "").split(",")
@@ -20,15 +21,14 @@ async def lifespan(app: FastAPI):
     try:
         print("System Starting")
         cron.start_scheduler()
-        #requests.put(notif_url, "Server is Online and Ready.")
         yield
     except Exception as e:
-        #requests.put(notif_url, f"BOOT FAILURE: {e}")
         raise e
     finally:
         print("System Shutting Down")
 
 app = FastAPI(lifespan=lifespan)
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -45,6 +45,8 @@ def read_root():
 
 app.include_router(leagues.router, prefix="/leagues", tags=["Leagues"])
 app.include_router(leaderboards.router, prefix="/leaderboards", tags=["Leaderboards"])
+app.include_router(auth.auth_router)
+app.include_router(predictions.router, prefix="/predictions", tags=["Predictions"])
 
 
 

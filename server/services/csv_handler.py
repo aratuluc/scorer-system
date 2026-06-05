@@ -26,12 +26,16 @@ def process_weekly_csv(db: Session, league_id: int, df: pd.DataFrame, week_num: 
     league_db = (db.query(models.League)
                     .options(joinedload(models.League.matches), joinedload(models.League.players))
                     .filter(models.League.id == league_id).first())
+    
     league_data = schemas.League.model_validate(league_db)
 
     player_map = {normalize_to_ascii(a.name):a.name for a in league_data.players}
     team_map = {normalize_to_ascii(a):a for a in league_data.team_map}
+
     pid_map = {a.name:a.id for a in league_data.players}
-    mid_map = {(a.home_team, a.away_team, a.fixture_week):a.id for a in league_data.matches}
+
+    match_lookup = {(m.home_team, m.away_team, m.fixture_week):m.id for m in league_db.matches}
+
     match_map = {a.id:a for a in league_db.matches}
 
     week_match_ids = [m.id for m in league_data.matches]
@@ -51,6 +55,7 @@ def process_weekly_csv(db: Session, league_id: int, df: pd.DataFrame, week_num: 
     count = 0
 
     match_list = {match_name:normalize_match_name(match_name, team_map) for match_name in df.columns[2:]}
+
     for index, row in df.iterrows():
         name = run_rapidfzf(normalize_to_ascii(row[df.columns[1]]), player_map, fuzz.token_set_ratio)
         if not name:
@@ -60,10 +65,52 @@ def process_weekly_csv(db: Session, league_id: int, df: pd.DataFrame, week_num: 
         player_id = pid_map.get(name)
         
         for match_name, match_tuple in match_list.items():
-            lookup_key = (match_tuple[0], match_tuple[1], week_num)
-            match_id = mid_map.get(lookup_key)
+            home_team, away_team = match_tuple
+            match_id = None
+            
+            # Look up the teams in our grouped queue
+            if (home_team, away_team, week_num) in match_lookup:
+                match_id = match_lookup.get((home_team, away_team, week_num))
                         
-            if not match_id: continue
+            if not match_id: 
+                print(f"Could not link {home_team} vs {away_team} for week {week_num}")
+                
+                # 1. Parse the score first so we don't stage blank/invalid predictions
+                try:
+                    home, away = map(int, str(row[match_name]).split("-"))
+                except (ValueError, AttributeError):
+                    continue
+
+                # 2. Check if we already created a StagingMatch for this game during an earlier player's row
+                staging_match = db.query(models.StagingMatch).filter_by(
+                    league_id=league_id, 
+                    scored_week=week_num, 
+                    home_team=home_team, 
+                    away_team=away_team
+                ).first()
+
+                # 3. If not, create the StagingMatch container
+                if not staging_match:
+                    staging_match = models.StagingMatch(
+                        league_id=league_id,
+                        scored_week=week_num,
+                        home_team=home_team,
+                        away_team=away_team
+                    )
+                    db.add(staging_match)
+                    db.flush() # Forces the DB to assign an ID immediately so we can use it below
+
+                # 4. Attach this specific player's prediction to the staging match
+                staging_pred = models.StagingPredictions(
+                    player_id=player_id,
+                    staging_match_id=staging_match.id,
+                    home_pred=home,
+                    away_pred=away
+                )
+                db.add(staging_pred)
+
+                continue
+
 
             try:
                 home, away = map(int, row[match_name].split("-"))
@@ -87,11 +134,11 @@ def process_weekly_csv(db: Session, league_id: int, df: pd.DataFrame, week_num: 
                     match_id=match_id,
                     home_pred=home,
                     away_pred=away,
-                    scored_week=week_num
                 )
                 db.add(new_pred)
                 count += 1
                 pred_lookup[key] = new_pred 
+            db.add(match)
 
     db.commit()
 

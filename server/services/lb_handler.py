@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import io
 from sqlalchemy import func
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, contains_eager
 from ..database import get_db
 from .. import models, schemas
 
@@ -16,36 +16,56 @@ def get_current_week(league_id:int, db: Session):
         max_week = 0
     return max_week
 
-def get_leaderboard(league_id:int, db:Session, week:int|None = None):
-    query = (db.query(models.Player)
-        .options(
-            joinedload(models.Player.predictions)
-            .joinedload(models.Prediction.match)
-        ))
+from sqlalchemy.orm import contains_eager
+
+def get_leaderboard(league_id: int, db: Session, week: int | None = None):
+    # 1. THE FIX: Lock the query down to this specific league immediately!
+    query = (
+        db.query(models.Player)
+        .join(models.Player.predictions)
+        .join(models.Prediction.match)
+        .filter(models.Player.league_id == league_id) 
+    )
+    
+    print(week)
         
-    if not week:
+    if week == 0:
+        pass
+    elif not week:
         current = get_current_week(league_id, db)
-        query.filter(models.Match.scored_week == current)
+        query = query.filter(models.Match.scored_week == current)
     elif week != 0:
-        query.filter(models.Match.scored_week == week)
+        print(f"Fetching week {week}")
+        query = query.filter(models.Match.scored_week == week)
+        print("here 2")
         
+    query = query.options(contains_eager(models.Player.predictions))
 
     leaderboard = [
-    schemas.PlayerLeaderboard.model_validate(p) 
-    for p in query.all()
+        schemas.PlayerLeaderboard.model_validate(p) 
+        for p in query.all()
     ]
 
+    # 2. SAFETY CHECK: Prevent an IndexError if the league has no players yet
+    if not leaderboard:
+        return []
+
     leaderboard.sort(key=lambda x: x.points, reverse=True)
+    
     ranked_leaderboard = []
     index = 1
     last = leaderboard[0].points
     print(last)
+    
     for player in leaderboard:
         if player.points < last:
             index += 1
+            last = player.points # Remember to update 'last' so rank 3, 4, 5 work!
+            
         ranked_leaderboard.append({"rank": index, **player.model_dump()})
 
-
     return ranked_leaderboard
+
+
 
         

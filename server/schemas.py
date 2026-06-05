@@ -1,6 +1,8 @@
 from typing import List, Optional
 from pydantic import BaseModel, Field, computed_field
 from enum import Enum
+from pydantic import BaseModel, model_validator
+from typing import Optional
 
 from .services import scoring
 from .models import Status 
@@ -23,6 +25,7 @@ class League(LeagueBase):
     matches: List["Match"]
     players: List["Player"]
     links: List["LinkResponse"]
+    is_active_for_scraping: bool
     # Removed direct weeks relationship from here
 
     @computed_field
@@ -97,6 +100,41 @@ class Prediction(PredictionBase):
         if self.match.home_score is None or self.match.away_score is None:
             return 0
         return scoring.evaluate_score(self.match.home_score, self.match.away_score, self.home_pred, self.away_pred)
+    
+class DisplayPrediction(PredictionBase):
+    id: int
+    home_team: str
+    away_team: str
+    home_score: Optional[int]
+    away_score: Optional[int]
+    points: int 
+    scored_week: int
+
+    @model_validator(mode='before')
+    @classmethod
+    def flatten_prediction(cls, data):
+        
+        extracted_home_team = data.match.home_team
+        extracted_away_team = data.match.away_team
+        extracted_home_score = data.match.home_score
+        extracted_away_score = data.match.away_score
+
+        if extracted_home_score is None or extracted_away_score is None:
+            calculated_points = 0
+        else:
+            calculated_points = scoring.evaluate_score(extracted_home_score, extracted_away_score, data.home_pred, data.away_pred)
+
+        return {
+            "id": data.id,
+            "home_pred": data.home_pred,
+            "away_pred": data.away_pred,
+            "home_team": extracted_home_team,
+            "away_team": extracted_away_team,
+            "home_score": extracted_home_score,
+            "away_score": extracted_away_score,
+            "points": calculated_points,
+            "scored_week": data.match.scored_week
+        }
 
 #=== LINK ===
 
@@ -129,6 +167,9 @@ class Week(WeekBase):
     matches: List["Match"] = []
     hasPassed: bool
     model_config = {"from_attributes": True}
+
+class WeekScored(WeekBase):
+    id: int
 
 #=== ETC === 
 class UnknownFix(BaseModel):

@@ -3,9 +3,12 @@ import requests
 import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+
+from .. import models
 from ..database import SessionLocal
 from . import scraping, scoring
 from dotenv import load_dotenv
+
 
 load_dotenv()
 notif_url = os.getenv("NOTIFICATION_URL")
@@ -16,8 +19,11 @@ JOB_ID = "smart_scraper"
 def scheduled_scraper_task():
     print("[INFO] Scheduler has started")
     db = SessionLocal()
+    print("love for uou")
     
-    # Default: Assume we are in 'Patrol Mode' (15 mins)
+    league_list = db.query(models.League).filter(models.League.is_active_for_scraping == True).all()
+    print(league_list)
+
     new_interval = 15 
     mode_message = "Standard Patrol"
 

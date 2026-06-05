@@ -113,6 +113,15 @@ export const getWeeks = async (league_id) => {
   return response.data;
 };
 
+export const getScoredWeeks = async (league_id) => {
+  const response = await api.get(`/leaderboards/${league_id}/weeks`, {
+    params: {
+      type: "scored",
+    },
+  });
+  return response.data;
+};
+
 export const fetchAllScores = async (league_id) => {
   const response = await api.put(`/leagues/${league_id}/matches/`);
   return response.data;
@@ -120,5 +129,55 @@ export const fetchAllScores = async (league_id) => {
 
 export const autofillPredictionsAPI = async (league_id) => {
   const response = await api.post(`/leagues/${league_id}/predictions:autofill`);
+  return response.data;
+};
+
+export const loginAdmin = async (username, password) => {
+  const formData = new URLSearchParams();
+  formData.append("username", username);
+  formData.append("password", password);
+
+  // Using your axios 'api' instance
+  const response = await api.post("/api/admin/login", formData, {
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+  });
+
+  // Axios automatically parses the JSON for us
+  const data = response.data;
+
+  // Notice the exact camelCase key to match your interceptor!
+  localStorage.setItem("adminToken", data.access_token);
+
+  return data;
+};
+
+export const getMatches = async (leagueID, isUnset, weeknum) => {
+  const response = await api.get(`/leagues/${leagueID}/matches`, {
+    params: {
+      unset: isUnset,
+      week: weeknum,
+    },
+  });
+  return response.data;
+};
+
+export const sendUnsetFix = async (leagueID, payload) => {
+  const response = await api.patch(`/leagues/${leagueID}/fix`, payload, {
+    params: { type: "unsetMatches" },
+  });
+  return response.data;
+};
+
+export const getPlayerPredictions = async (leagueID, playerID, weekNum) => {
+  const response = await api.get(`/predictions/${leagueID}`, {
+    params: { player_id: playerID, week_num: weekNum },
+  });
+  return response.data;
+};
+
+export const getStagingMatches = async (league_id) => {
+  const response = await api.get(`/leagues/${league_id}/staging-matches`);
   return response.data;
 };

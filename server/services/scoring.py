@@ -20,8 +20,6 @@ def evaluate_score(true_home:int, true_away:int, prediction_home:int, prediction
   if(prediction_away == None): 
      prediction_away = 3
     
-
-
   if true_home>true_away:
      result = "home"
   elif true_away>true_home:

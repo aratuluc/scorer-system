@@ -3,6 +3,7 @@ import Modal from "../common/Modal";
 import PlayerRow from "./PlayerRow";
 import { useParams } from "react-router-dom";
 import { getPlayers } from "../../services/api";
+import { Button } from "@/components/ui/button";
 
 function UnknownModal({ isOpen, onClose, onSave, unknownPlayers }) {
   const [unkPlayers, setUnkPlayers] = useState([]);
@@ -32,6 +33,15 @@ function UnknownModal({ isOpen, onClose, onSave, unknownPlayers }) {
     e.preventDefault();
     onSave(unkPlayers);
     onClose();
+  };
+
+  const handleAllAsIs = () => {
+    setUnkPlayers((currentPlayers) =>
+      currentPlayers.map((player) => ({
+        ...player,
+        textValue: player.name,
+      })),
+    );
   };
 
   const handleRowChange = (index, field, value) => {
@@ -69,13 +79,18 @@ function UnknownModal({ isOpen, onClose, onSave, unknownPlayers }) {
             ))}
         </div>
         <div className="flex items-center justify-end">
-          <button
+          <Button variant="outline" type="button" onClick={handleAllAsIs}>
+            All as is
+          </Button>
+
+          <Button
+            variant="outline"
             type="submit"
             disabled={!isFormValid}
-            className={`bg-blue-600 text-white p-2 mt-4 rounded ${!isFormValid ? "opacity-50 cursor-not-allowed" : ""}`}
+            className={`bg-blue-600 text-white p-2 ml-2 rounded ${!isFormValid ? "opacity-50 cursor-not-allowed" : ""}`}
           >
             Save
-          </button>
+          </Button>
         </div>
       </form>
     </Modal>
