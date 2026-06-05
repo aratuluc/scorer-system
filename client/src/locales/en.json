@@ -3,6 +3,15 @@
     "select_week": "Select Week...",
     "overall": "Overall Standings",
     "pts": "pts",
-    "filter_by": "Filter by:"
+    "filter_by": "Filter by:",
+    "no_weeks": "No weeks scored yet.",
+    "no_predictions": "No predictions found for this week.",
+    "not_enough_players": "Not enough players for a full standings calculation yet!",
+    "actual": "Actual",
+    "predicted": "Predicted",
+    "tbd": "TBD",
+    "na": "N/A",
+    "viewing_predictions": "Viewing predictions for {{name}}",
+    "week": "Week"
   }
 }

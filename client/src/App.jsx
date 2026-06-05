@@ -11,6 +11,7 @@ import LoginPage from "./my_components/admin/LoginPage";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import { useTranslation } from "react-i18next";
 
 const queryClient = new QueryClient();
 
