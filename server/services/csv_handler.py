@@ -2,8 +2,8 @@ import pandas as pd
 import numpy as np
 import io
 from sqlalchemy.orm import Session, joinedload
-from .. import models, schemas
-from . import cron
+import models, schemas
+from services import cron
 from rapidfuzz import process, fuzz
 from typing import Callable, Optional
 

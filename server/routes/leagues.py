@@ -5,13 +5,13 @@ from typing import List
 from sqlalchemy import null
 
 
-from ..services import scraping, csv_handler, scoring, security, league_services
-from ..database import engine, get_db
+from services import scraping, csv_handler, scoring, security, league_services
+from database import engine, get_db
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, responses
 from sqlalchemy.orm import Session, joinedload
 import pandas as pd
 import io
-from .. import models, schemas, database
+import models, schemas, database
 
 router = APIRouter(dependencies=[Depends(security.verify_admin)])
 #router = APIRouter()

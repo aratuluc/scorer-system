@@ -1,14 +1,14 @@
 
-from .database import engine
+from database import engine
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from . import models, schemas, database
+import models, schemas, database
 from dotenv import load_dotenv
 import os
 import requests
-from .services import cron, security
-from .routes import leagues, leaderboards, auth, predictions
+from services import cron, security
+from routes import leagues, leaderboards, auth, predictions
 
 load_dotenv()
 origins = os.getenv("ALLOWED_ORIGINS", "").split(",")

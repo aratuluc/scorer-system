@@ -1,11 +1,11 @@
 from sqlalchemy import func
-from ..services import lb_handler, prediction_services
-from ..database import engine, get_db
+from services import lb_handler, prediction_services
+from database import engine, get_db
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, responses
 from sqlalchemy.orm import Session, joinedload
 import pandas as pd
 import io
-from .. import models, schemas, database
+import models, schemas, database
 
 router = APIRouter()
 

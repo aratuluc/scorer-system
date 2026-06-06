@@ -4,8 +4,8 @@ from enum import Enum
 from pydantic import BaseModel, model_validator
 from typing import Optional
 
-from .services import scoring
-from .models import Status 
+from services import scoring
+from models import Status 
 
 #=== LEAGUE ===
 

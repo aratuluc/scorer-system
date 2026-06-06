@@ -1,4 +1,4 @@
-from .services.cron import force_wake_up, start_scheduler
+from services.cron import force_wake_up, start_scheduler
 import time
 
 start_scheduler()

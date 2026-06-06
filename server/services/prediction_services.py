@@ -1,7 +1,7 @@
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 import re
-from .. import models, schemas
+import models, schemas
 
 from sqlalchemy.orm import joinedload, contains_eager
 

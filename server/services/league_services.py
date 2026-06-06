@@ -1,7 +1,7 @@
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 import re
-from .. import models, schemas
+import models, schemas
 
 def handle_unset_fix(league_id: int, db: Session, payload: dict):
     new_real_predictions = []

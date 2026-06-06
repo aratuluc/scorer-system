@@ -2,7 +2,7 @@ import os
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
-from ..services.security import create_access_token
+from services.security import create_access_token
 from dotenv import load_dotenv
 
 load_dotenv()

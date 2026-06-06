@@ -4,8 +4,8 @@ import numpy as np
 import io
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload, contains_eager
-from ..database import get_db
-from .. import models, schemas
+from database import get_db
+import models, schemas
 
 def get_current_week(league_id:int, db: Session):
     max_week = db.query(func.max(models.Match.scored_week))\

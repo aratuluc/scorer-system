@@ -4,9 +4,9 @@ import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
-from .. import models
-from ..database import SessionLocal
-from . import scraping, scoring
+import models
+from database import SessionLocal
+from services import scraping, scoring
 from dotenv import load_dotenv
 
 

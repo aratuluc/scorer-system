@@ -3,7 +3,7 @@ import json
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 import re
-from .. import models, schemas
+import models, schemas
 
 ENDPOINT = "https://arsiv.mackolik.com/AjaxHandlers/FixtureHandler.aspx"
 
