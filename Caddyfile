@@ -1,0 +1,7 @@
+predict.arat.dev {
+    reverse_proxy client:80
+}
+
+api.arat.dev {
+    reverse_proxy api:8000
+}

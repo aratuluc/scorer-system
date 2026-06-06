@@ -13,7 +13,6 @@ venv/
 
 # Node/React
 node_modules/
-dist/
 .eslintcache
 
 # Database

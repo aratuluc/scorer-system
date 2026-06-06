@@ -1,0 +1,52 @@
+services:
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - scorer-system_postgres_prod_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  api:
+    build: 
+      context: ./server
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  client:
+    build:
+      context: ./client
+    restart: unless-stopped
+    depends_on:
+      - api
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - client
+      - api
+
+volumes:
+  scorer-system_postgres_prod_data:
+  caddy_data:
+  caddy_config:
