@@ -6,7 +6,7 @@ psycopg2-binary
 sqlalchemy
 dotenv
 apscheduler
-jwt
+PyJWT
 pandas
 rapidfuzz
 python-multipart

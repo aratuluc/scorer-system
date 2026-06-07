@@ -32,6 +32,7 @@ services:
   client:
     build:
       context: ./client
+      dockerfile: Dockerfile 
     restart: unless-stopped
     depends_on:
       - api

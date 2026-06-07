@@ -1,10 +1,3 @@
-from shlex import join
-from turtle import mode
-from typing import List
-
-from sqlalchemy import null
-
-
 from services import scraping, csv_handler, scoring, security, league_services
 from database import engine, get_db
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, responses
@@ -176,7 +169,7 @@ def get_predictions(league_id:int, week: int | None = None, player: str | None =
 @router.put("/{league_id}/predictions")
 def add_unknown_fix(league_id: int, fix_data:list[schemas.UnknownFix], db:Session = Depends(get_db)):
     result = csv_handler.handle_fix(fix_data, league_id, db)
-    return {"text": f"Successfully created {result["new"]}, updated {result["update"]}"}
+    return {"text": f"Successfully created {result['new']}, updated {result['update']}"}
 
 @router.put("/{league_id}/weeks/{week_num}/matches")
 def fetch_scores_for_week(league_id:int, week_num: int, db:Session = Depends(get_db)):
