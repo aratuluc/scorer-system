@@ -10,13 +10,13 @@ import Header from "../common/Header";
 import Card from "../common/Card";
 import LeaderboardPlayer from "./LeaderboardPlayer";
 import {
-  Combobox,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-} from "@/components/ui/combobox";
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useQuery } from "@tanstack/react-query";
 import {
   Dialog,
@@ -28,6 +28,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { getLeaderboardTitle } from "@/services/leaderboard_api";
 
 function Leaderboard() {
   const { t } = useTranslation();
@@ -64,52 +65,48 @@ function Leaderboard() {
     data: leagueInfo,
     isLoading: isLeaguesLoading,
     isError: isLeaguesError,
-  } = useQuery({ queryKey: ["leagueInfo", id], queryFn: () => getLeague(id) });
+  } = useQuery({
+    queryKey: ["leagueInfo", id],
+    queryFn: () => getLeaderboardTitle(id),
+  });
 
   return (
     <div className="p-4 max-w-3xl mx-auto">
       {isLeaguesLoading ? (
         <Spinner />
       ) : (
-        <Header title={`${leagueInfo.name} ${leagueInfo.start_year}`} />
+        <Header title={`${leagueInfo?.title}`} />
       )}{" "}
       <div className="mb-6 flex items-center gap-2">
         <span className="text-sm font-medium text-gray-500">
           {t("leaderboard.filter_by")}
         </span>
 
-        <Combobox
-          items={scoredWeeks}
-          value={currentWeek.toString()}
-          onValueChange={handleWeekChange}
-        >
-          <ComboboxInput placeholder={t("leaderboard.select_week")} />
-          <ComboboxContent>
-            <ComboboxEmpty>{t("leaderboard.no_weeks")}</ComboboxEmpty>
-            <ComboboxList className={"overflow-auto max-h-64"}>
-              <ComboboxItem value="0">{t("leaderboard.overall")}</ComboboxItem>
-              {scoredWeeks.map((weekObj) => (
-                <ComboboxItem
-                  key={weekObj.id}
-                  value={weekObj.week_num.toString()}
-                >
-                  {t("leaderboard.week")} {weekObj.week_num}
-                </ComboboxItem>
-              ))}
-            </ComboboxList>
-          </ComboboxContent>
-        </Combobox>
+        <Select>
+          <SelectTrigger>
+            <SelectValue placeholder={t("leaderboard.select_week")} />
+          </SelectTrigger>
+          <SelectContent>
+            {scoredWeeks.map((week) => {
+              return (
+                <SelectItem value={week.week_num}>
+                  {t("leaderboard.week")} {week.week_num}
+                </SelectItem>
+              );
+            })}
+          </SelectContent>
+        </Select>
       </div>
       {players.length >= 3 && (
         <div className="flex justify-center items-end h-64 gap-2 mb-10 mt-12 px-4">
           {/* 2nd Place */}
           <button
-            onClick={() => setCurrentPlayerID(second.id)}
+            onClick={() => setCurrentPlayerID(second.player_id)}
             className="w-1/3 bg-gray-200 h-40 rounded-t-lg flex flex-col items-center justify-start pt-6 shadow-sm relative transition-transform hover:-translate-y-1"
           >
             <div className="absolute -top-8 text-4xl">🥈</div>
             <span className="font-bold text-gray-700 truncate w-full text-center px-2">
-              {second?.name}
+              {second?.player_name}
             </span>
             <span className="text-sm font-semibold text-gray-500">
               {second?.points} {t("leaderboard.pts")}
@@ -118,12 +115,12 @@ function Leaderboard() {
 
           {/* 1st Place */}
           <button
-            onClick={() => setCurrentPlayerID(first.id)}
+            onClick={() => setCurrentPlayerID(first.player_id)}
             className="w-1/3 bg-yellow-400 h-56 rounded-t-lg flex flex-col items-center justify-start pt-8 shadow-xl z-10 relative transition-transform hover:-translate-y-1"
           >
             <div className="absolute -top-10 text-5xl">🥇</div>
             <span className="font-extrabold text-xl text-yellow-900 truncate w-full text-center px-2">
-              {first?.name}
+              {first?.player_name}
             </span>
             <span className="font-bold text-yellow-800">
               {first?.points} {t("leaderboard.pts")}
@@ -132,12 +129,12 @@ function Leaderboard() {
 
           {/* 3rd Place */}
           <button
-            onClick={() => setCurrentPlayerID(third.id)}
+            onClick={() => setCurrentPlayerID(third.player_id)}
             className="w-1/3 bg-orange-200 h-32 rounded-t-lg flex flex-col items-center justify-start pt-4 shadow-sm relative transition-transform hover:-translate-y-1"
           >
             <div className="absolute -top-8 text-3xl">🥉</div>
             <span className="font-bold text-orange-900 truncate w-full text-center px-2">
-              {third?.name}
+              {third?.player_name}
             </span>
             <span className="text-sm font-semibold text-orange-800">
               {third?.points} {t("leaderboard.pts")}
@@ -149,7 +146,7 @@ function Leaderboard() {
         <div className="flex flex-col gap-2 p-2">
           {remainingPlayers.map((player, index) => (
             <LeaderboardPlayer
-              key={player.name}
+              key={player.player_name}
               playerData={player}
               rank={index + 4}
               onClick={setCurrentPlayerID}
@@ -165,7 +162,7 @@ function Leaderboard() {
       <PredictionsModal
         currentPlayerID={currentPlayerID}
         setCurrentPlayerID={setCurrentPlayerID}
-        playerName={selectedPlayer?.name}
+        playerName={selectedPlayer?.player_name}
         currentWeek={currentWeek}
         leagueID={id}
       />

@@ -1,6 +1,6 @@
-from services import scraping, csv_handler, scoring, security, league_services
+from services import leaderboard_services, scraping, csv_handler, scoring, security, league_services
 from database import engine, get_db
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, responses
+from fastapi import APIRouter, BackgroundTasks, UploadFile, File, HTTPException, Depends, responses
 from sqlalchemy.orm import Session, joinedload
 import pandas as pd
 import io
@@ -73,8 +73,9 @@ def delete_link(link_id: int, db:Session = Depends(get_db)):
 async def upload_weekly_csv(
     league_id: int, 
     week_num: int, 
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...), 
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
 
     if not file.filename.endswith('.csv'):
@@ -88,6 +89,8 @@ async def upload_weekly_csv(
         raise HTTPException(status_code=400, detail=f"Could not parse CSV: {str(e)}")
     
     result = csv_handler.process_weekly_csv(db, league_id, df, week_num)
+
+    background_tasks.add_task(leaderboard_services.rebuild_leaderboard_cache_wrapper, league_id, week_num)
     
     return {
         "filename": file.filename,
@@ -95,6 +98,7 @@ async def upload_weekly_csv(
         "columns": len(df.columns),
         **result
     }
+
 
 @router.get("/{league_id}/players", response_model=list[schemas.Player])
 def get_players_for_league(league_id:int, db: Session = Depends(get_db)):
@@ -263,3 +267,23 @@ def enable_scraping_for_league(league_id: int, status: bool, db: Session = Depen
 @router.get("/{league_id}/staging-matches")
 def get_staging_matches(league_id:int, db:Session = Depends(get_db)):
     return db.query(models.StagingMatch).filter(models.StagingMatch.league_id == league_id).all()
+
+@router.post("/{league_id}/recalculate-all")
+async def recalculate_entire_season(league_id: int, background_tasks: BackgroundTasks):
+    # Offload the entire seasonal loop safely to the background worker pool
+    background_tasks.add_task(leaderboard_services.rebuild_entire_season_cache_wrapper, league_id)
+    
+    return {
+        "status": "processing",
+        "message": "Global season recalculation initiated. This will update all historical week snapshots."
+    }
+
+@router.put("/{league_id}/rebuild")
+async def rebuild_leaderboard(league_id: int, week:int ,background_tasks: BackgroundTasks):
+
+    background_tasks.add_task(leaderboard_services.rebuild_leaderboard_cache_wrapper, league_id, week)
+    
+    return {
+        "status": "success",
+        "message": f"Rebuilding leaderboard for league_id: {league_id} week: {week}"
+    }

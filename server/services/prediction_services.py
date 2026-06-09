@@ -15,6 +15,7 @@ def get_player_predictions(league_id: int, week_num: int | None, player_id: int,
             models.Match.league_id == league_id, 
             models.Prediction.player_id == player_id
         )
+        .order_by(models.Match.scored_week.asc())
     )
 
     if not week_num:

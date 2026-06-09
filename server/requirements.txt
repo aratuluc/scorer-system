@@ -4,7 +4,7 @@ pydantic
 requests
 psycopg2-binary
 sqlalchemy
-dotenv
+python-dotenv
 apscheduler
 PyJWT
 pandas

@@ -1,3 +1,4 @@
+from fastapi import BackgroundTasks
 import pandas as pd
 import numpy as np
 import io
@@ -56,6 +57,8 @@ def process_weekly_csv(db: Session, league_id: int, df: pd.DataFrame, week_num: 
 
     match_list = {match_name:normalize_match_name(match_name, team_map) for match_name in df.columns[2:]}
 
+    all_match_ids = [m.id for m in league_db.matches] 
+
     for index, row in df.iterrows():
         name = run_rapidfzf(normalize_to_ascii(row[df.columns[1]]), player_map, fuzz.token_set_ratio)
         if not name:
@@ -71,6 +74,11 @@ def process_weekly_csv(db: Session, league_id: int, df: pd.DataFrame, week_num: 
             # Look up the teams in our grouped queue
             if (home_team, away_team, week_num) in match_lookup:
                 match_id = match_lookup.get((home_team, away_team, week_num))
+
+                current_match = match_map.get(match_id)
+
+                if current_match and current_match.scored_week != week_num:
+                    current_match.scored_week = week_num
                         
             if not match_id: 
                 print(f"Could not link {home_team} vs {away_team} for week {week_num}")
@@ -117,11 +125,6 @@ def process_weekly_csv(db: Session, league_id: int, df: pd.DataFrame, week_num: 
             except (ValueError, AttributeError):
                 continue
 
-            match = match_map.get(match_id)
-            match.scored_week = week_num
-            print(f"Set {match.home_team}'s match for week {week_num}")
-            print(f"Set {match.scored_week}")
-
             key = (player_id, match_id)
 
             if key in pred_lookup:
@@ -138,11 +141,9 @@ def process_weekly_csv(db: Session, league_id: int, df: pd.DataFrame, week_num: 
                 db.add(new_pred)
                 count += 1
                 pred_lookup[key] = new_pred 
-            db.add(match)
+
 
     db.commit()
-
-    cron.force_wake_up()
 
     return {
         "total_processed": count,

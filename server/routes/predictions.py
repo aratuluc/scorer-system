@@ -1,5 +1,5 @@
 from sqlalchemy import func
-from services import lb_handler, prediction_services
+from services import leaderboard_services, prediction_services
 from database import engine, get_db
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, responses
 from sqlalchemy.orm import Session, joinedload

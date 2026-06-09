@@ -7,11 +7,11 @@ export default function LeaderboardPlayer({ playerData, rank, onClick }) {
   };
 
   return (
-    <button onClick={() => onClick(playerData.id)}>
+    <button onClick={() => onClick(playerData.player_id)}>
       <div className="flex bg-gray-200 hover:bg-gray-300 transition-transform hover:translate-x-2 justify-between items-center rounded-full py-1 px-4">
         <span>
           <span className="font-semibold text-l text-gray-700">{rank}. </span>
-          <span className="font-bold text-xl">{playerData.name}</span>
+          <span className="font-bold text-xl">{playerData.player_name}</span>
         </span>
         <span className="font-bold">{playerData.points}</span>
       </div>

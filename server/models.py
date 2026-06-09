@@ -1,6 +1,6 @@
 from typing import List
 from typing import Optional
-from sqlalchemy import Boolean, ForeignKey, String, true
+from sqlalchemy import Boolean, ForeignKey, String, true, Index
 from database import Base
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
@@ -109,6 +109,9 @@ class Player(Base):
 
 class Prediction(Base):
     __tablename__= "prediction"
+    __table_args__ = (
+    Index('idx_player_match_points', 'player_id', 'match_id', 'points'),
+)
     id: Mapped[int] = mapped_column(primary_key=True)
     player_id: Mapped[int] = mapped_column(ForeignKey("player.id"))
     match_id: Mapped[int] = mapped_column(ForeignKey("match.id"))
@@ -133,3 +136,23 @@ class Week(Base):
     matches: Mapped[List["Match"]] = relationship(
         back_populates="week", cascade="all, delete-orphan"
     )
+
+class Leaderboard(Base):
+    __tablename__ = "leaderboards"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    league_id: Mapped[int] = mapped_column(index=True)
+    week_num: Mapped[int] = mapped_column(index=True)
+    rows: Mapped[list["LeaderboardRow"]] = relationship(cascade="all, delete-orphan", back_populates="leaderboard")
+
+class LeaderboardRow(Base):
+    __tablename__ = "leaderboard_rows"
+    id: Mapped[int] = mapped_column(primary_key = True)
+    leaderboard_id: Mapped[int] = mapped_column(ForeignKey("leaderboards.id", ondelete="CASCADE"))
+    
+    leaderboard: Mapped["Leaderboard"] = relationship(back_populates="rows")
+
+    player_id: Mapped[int] = mapped_column(ForeignKey("player.id"))
+    player_name: Mapped[str]
+    points: Mapped[int]
+    rank: Mapped[int]

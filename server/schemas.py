@@ -180,6 +180,15 @@ class UnknownFix(BaseModel):
     week_num: int
     model_config = {"from_attributes": True}
 
+class LeaderboardRow(BaseModel):
+    player_id: int
+    player_name: str
+    points: int
+    rank: int
+
+    model_config = {"from_attributes": True}
+
+
 
 League.model_rebuild()
 Match.model_rebuild()

@@ -2,7 +2,7 @@ import axios from "axios";
 const API_URL = import.meta.env.VITE_API_BASE_URL;
 
 // Create a base instance
-const api = axios.create({
+export const api = axios.create({
   baseURL: API_URL, // Your FastAPI URL
 });
 

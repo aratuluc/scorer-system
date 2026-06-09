@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getLinks,
   getLeague,
   getMatches,
-  sendUnknownFix,
   sendUnsetFix,
   getStagingMatches,
 } from "../../services/api";
@@ -13,44 +13,67 @@ import Header from "../common/Header";
 import CsvUploader from "../prediction-upload/CsvUploader";
 import PlayerList from "../player/PlayerList";
 import Accordion from "../common/Accordion";
-import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Spinner } from "@/components/ui/spinner";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Combobox,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-} from "@/components/ui/combobox";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 function LeagueDetail() {
   const { id } = useParams();
+  const queryClient = useQueryClient();
+
   const [links, setLinks] = useState([]);
   const [league, setLeague] = useState([]);
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // 1. Fetch Staging Matches
+  const { data: stagingMatches = [], isLoading: isStagingLoading } = useQuery({
+    queryKey: ["stagingMatches", id],
+    queryFn: () => getStagingMatches(id),
+  });
+
+  // 2. Fetch All Matches and filter down to Unset Matches
+  const { data: allMatches = [] } = useQuery({
+    queryKey: ["matches", id],
+    queryFn: () => getMatches(id, true, 0),
+  });
+
+  const unsetMatches = allMatches.filter(
+    (m) => m.home_score === null || m.away_score === null,
+  );
+
+  // 3. Mutation to submit fixes and clear state automatically
+  const fixMutation = useMutation({
+    mutationFn: (payload) => sendUnsetFix(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["stagingMatches", id] });
+      queryClient.invalidateQueries({ queryKey: ["matches", id] });
+    },
+  });
+
+  // Legacy state fetches
   useEffect(() => {
     getLinks(id)
       .then(setLinks)
       .catch((err) => console.log(err));
-  }, []);
+  }, [id]);
 
   useEffect(() => {
     getLeague(id)
       .then(setLeague)
       .catch((err) => console.error(err));
-  }, []);
+  }, [id]);
 
   const refreshPlayers = () => {
     setRefreshKey((a) => a + 1);
@@ -80,7 +103,20 @@ function LeagueDetail() {
         <CsvUploader refreshPlayers={refreshPlayers} />
       </div>
 
-      <StagingMatches></StagingMatches>
+      {/* Staging Matches Card Section */}
+      <div className="mt-8">
+        {isStagingLoading ? (
+          <div className="flex justify-center p-4">
+            <Spinner />
+          </div>
+        ) : (
+          <StagingMatchesCard
+            stagingMatches={stagingMatches}
+            unsetMatches={unsetMatches}
+            fixMutation={fixMutation}
+          />
+        )}
+      </div>
 
       <div className="mt-8 border-t pt-4">
         <Accordion title={"Players"}>
@@ -93,129 +129,90 @@ function LeagueDetail() {
       <h3 className="mt-10 font-bold text-lg border-t p-2 pt-4">Links</h3>
 
       <div className="flex gap-4">
-        <Button size="lg">
-          <Link className="" to={"./scrape"}>
-            <span>Go To Scraping Overview</span>
-          </Link>
+        <Button size="lg" asChild>
+          <Link to={"./scrape"}>Go To Scraping Overview</Link>
         </Button>
 
-        <Button size="lg">
-          <Link className="" to={"./weeks"}>
-            <span>Go To Week Overview</span>
-          </Link>
+        <Button size="lg" asChild>
+          <Link to={"./weeks"}>Go To Week Overview</Link>
         </Button>
       </div>
     </div>
   );
 }
 
-function StagingMatches({}) {
-  const { id } = useParams();
+export function StagingMatchesCard({
+  stagingMatches,
+  unsetMatches,
+  fixMutation,
+}) {
   const [fixes, setFixes] = useState({});
-  const queryClient = useQueryClient();
-  const {
-    data: stagingMatches,
-    isLoading,
-    isError,
-  } = useQuery({
-    queryKey: ["stagingMatches", id],
-    queryFn: () => getStagingMatches(id),
-  });
 
-  const {
-    data: unsetMatches,
-    isLoading: isUnsetLoading,
-    isError: isUnsetError,
-  } = useQuery({
-    queryKey: ["unsetMatches", id],
-    queryFn: () => getMatches(id, true, 0),
-  });
-
-  const fixMutation = useMutation({
-    mutationFn: (payload) => sendUnsetFix(id, payload),
-
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["stagingMatches", id] });
-
-      setFixes({});
-    },
-
-    onError: (error) => {
-      console.error("The backend rejected the fix:", error);
-    },
-  });
-
-  const handleChangeForStagings = (staging, unset) => {
-    console.log(staging, unset);
-    setFixes((prev) => ({ ...prev, [staging]: unset }));
+  const handleChangeForStagings = (stagingId, realMatchId) => {
+    setFixes((prev) => ({
+      ...prev,
+      [stagingId]: Number(realMatchId),
+    }));
   };
 
-  if (isLoading || isUnsetLoading) return <Spinner></Spinner>;
-
   return (
-    <div>
-      {
-        <div className="mt-8 border-t pt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Staging Matches</CardTitle>
-              <CardDescription>{`There are ${stagingMatches.length || "none"} staging matches`}</CardDescription>
-              <CardAction>
-                <Button
-                  onClick={() => fixMutation.mutate(fixes)}
-                  disabled={
-                    Object.keys(fixes).length === 0 || fixMutation.isPending
-                  }
-                >
-                  Submit
-                  {fixMutation.isPending && <Spinner />}
-                </Button>
-              </CardAction>
-            </CardHeader>
-            <CardContent className={"divide-y"}>
-              {stagingMatches.map((match) => (
-                <div
-                  className="flex justify-between items-center"
-                  key={match.id}
-                >
-                  <div className="flex gap-2">
-                    <span>
-                      {match.home_team} vs. {match.away_team}
-                    </span>
-                    <span className="text-xs text-blue-500 border rounded bg-blue-100">
-                      Week {match.scored_week}
-                    </span>
-                  </div>
+    <Card>
+      <CardHeader>
+        <div className="flex justify-between items-center w-full p-2">
+          <div>
+            <CardTitle>Staging Matches</CardTitle>
+            <CardDescription>
+              {stagingMatches.length > 0
+                ? `There are ${stagingMatches.length} staging matches requiring alignment`
+                : "No unmatched staging records found."}
+            </CardDescription>
+          </div>
 
-                  <Combobox
-                    onValueChange={(value) =>
-                      handleChangeForStagings(match.id, value)
-                    }
-                    className="w-max"
-                    items={unsetMatches}
-                    itemToStringValue={(unset) =>
-                      `${unset.home_team} - ${unset.away_team} : ${unset.fixture_week}`
-                    }
-                  >
-                    <ComboboxInput placeholder="Select a match" />
-                    <ComboboxContent>
-                      <ComboboxEmpty>No items found.</ComboboxEmpty>
-                      <ComboboxList>
-                        {(unset) => (
-                          <ComboboxItem key={unset.id} value={unset.id}>
-                            {`${unset.home_team} - ${unset.away_team} : ${unset.fixture_week}`}
-                          </ComboboxItem>
-                        )}
-                      </ComboboxList>
-                    </ComboboxContent>
-                  </Combobox>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+          <Button
+            onClick={() => fixMutation.mutate(fixes)}
+            disabled={Object.keys(fixes).length === 0 || fixMutation.isPending}
+          >
+            Submit Alignment{" "}
+            {fixMutation.isPending && <Spinner className="ml-2" />}
+          </Button>
         </div>
-      }
-    </div>
+      </CardHeader>
+
+      <CardContent className="divide-y border-t mt-2">
+        {stagingMatches.map((match) => (
+          <div
+            className="flex justify-between items-center py-3 px-1"
+            key={match.id}
+          >
+            <div className="flex flex-col gap-1">
+              <span className="font-medium text-sm text-foreground">
+                {match.home_team} vs. {match.away_team}
+              </span>
+              <span className="w-max px-2 py-0.5 text-xs font-semibold text-blue-600 bg-blue-50 border border-blue-200 rounded">
+                Parsed Week {match.scored_week}
+              </span>
+            </div>
+
+            <Select
+              value={fixes[match.id] ? String(fixes[match.id]) : ""}
+              onValueChange={(val) => handleChangeForStagings(match.id, val)}
+            >
+              <SelectTrigger className="w-[320px] bg-background border-muted text-left font-normal">
+                <SelectValue placeholder="Map to Database Fixture..." />
+              </SelectTrigger>
+
+              <SelectContent>
+                {unsetMatches.map((unset) => (
+                  <SelectItem key={unset.id} value={String(unset.id)}>
+                    {`${unset.home_team} vs ${unset.away_team} (Wk ${unset.fixture_week})`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
   );
 }
 
