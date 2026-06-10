@@ -24,45 +24,59 @@ def normalize_to_ascii(text):
 
 
 def process_weekly_csv(db: Session, league_id: int, df: pd.DataFrame, week_num: int):
+    # 1. Broad Eager-Loaded Core Pull
     league_db = (db.query(models.League)
                     .options(joinedload(models.League.matches), joinedload(models.League.players))
                     .filter(models.League.id == league_id).first())
     
     league_data = schemas.League.model_validate(league_db)
 
-    player_map = {normalize_to_ascii(a.name):a.name for a in league_data.players}
-    team_map = {normalize_to_ascii(a):a for a in league_data.team_map}
-
-    pid_map = {a.name:a.id for a in league_data.players}
-
-    match_lookup = {(m.home_team, m.away_team, m.fixture_week):m.id for m in league_db.matches}
-
-    match_map = {a.id:a for a in league_db.matches}
-
+    # 2. Extract String Maps Natively
+    player_map = {normalize_to_ascii(a.name): a.name for a in league_data.players}
+    team_map = {normalize_to_ascii(a): a for a in league_data.team_map}
+    pid_map = {a.name: a.id for a in league_data.players}
+    match_lookup = {(m.home_team, m.away_team, m.fixture_week): m.id for m in league_db.matches}
+    match_map = {a.id: a for a in league_db.matches}
     week_match_ids = [m.id for m in league_data.matches]
 
+    # Cache existing predictions
     existing_preds_db = (
         db.query(models.Prediction)
         .filter(models.Prediction.match_id.in_(week_match_ids))
         .all()
     )
+    pred_lookup = {(p.player_id, p.match_id): p for p in existing_preds_db}
 
-    pred_lookup = {
-        (p.player_id, p.match_id): p 
-        for p in existing_preds_db
-    }
+    # Cache all current database staging matches to eliminate the N+1 query loop completely
+    existing_staging_db = (
+        db.query(models.StagingMatch)
+        .filter(models.StagingMatch.league_id == league_id, models.StagingMatch.scored_week == week_num)
+        .all()
+    )
+    # Memory Lookup Map: {(home_team, away_team): staging_match_instance}
+    staging_match_lookup = {(sm.home_team, sm.away_team): sm for sm in existing_staging_db}
 
-    unassigned_names=[]
+    unassigned_names = []
     count = 0
 
-    match_list = {match_name:normalize_match_name(match_name, team_map) for match_name in df.columns[2:]}
+    # 3. Cache Match String Normalization BEFORE entering the loop
+    # This prevents calculating fuzzy match similarity strings repeatedly for every row
+    match_list = {match_name: normalize_match_name(match_name, team_map) for match_name in df.columns[2:]}
 
-    all_match_ids = [m.id for m in league_db.matches] 
+    # Pre-resolve and cache player names to optimize CPU usage
+    # This prevents running process.extractOne repeatedly for identical strings
+    resolved_player_cache = {}
+    for raw_name in df[df.columns[1]].unique():
+        normalized_raw = normalize_to_ascii(str(raw_name))
+        resolved_player_cache[raw_name] = run_rapidfzf(normalized_raw, player_map, fuzz.token_set_ratio)
 
+    # 4. Streamlined Processing Loop (Now Completely In-Memory)
     for index, row in df.iterrows():
-        name = run_rapidfzf(normalize_to_ascii(row[df.columns[1]]), player_map, fuzz.token_set_ratio)
+        raw_row_name = row[df.columns[1]]
+        name = resolved_player_cache.get(raw_row_name)
+        
         if not name:
-            unassigned_names.append({"name":row[df.columns[1]].strip(),"preds":{**row[2:]}, "week":week_num})
+            unassigned_names.append({"name": str(raw_row_name).strip(), "preds": {**row[2:]}, "week": week_num})
             continue
 
         player_id = pid_map.get(name)
@@ -71,34 +85,26 @@ def process_weekly_csv(db: Session, league_id: int, df: pd.DataFrame, week_num: 
             home_team, away_team = match_tuple
             match_id = None
             
-            # Look up the teams in our grouped queue
+            # Check if match is already defined in the database
             if (home_team, away_team, week_num) in match_lookup:
                 match_id = match_lookup.get((home_team, away_team, week_num))
-
                 current_match = match_map.get(match_id)
-
                 if current_match and current_match.scored_week != week_num:
                     current_match.scored_week = week_num
                         
             if not match_id: 
-                print(f"Could not link {home_team} vs {away_team} for week {week_num}")
-                
-                # 1. Parse the score first so we don't stage blank/invalid predictions
+                # Parse prediction scores safely
                 try:
                     home, away = map(int, str(row[match_name]).split("-"))
                 except (ValueError, AttributeError):
                     continue
 
-                # 2. Check if we already created a StagingMatch for this game during an earlier player's row
-                staging_match = db.query(models.StagingMatch).filter_by(
-                    league_id=league_id, 
-                    scored_week=week_num, 
-                    home_team=home_team, 
-                    away_team=away_team
-                ).first()
+                # Fetch staging match from our fast in-memory dictionary
+                staging_key = (home_team, away_team)
+                staging_match = staging_match_lookup.get(staging_key)
 
-                # 3. If not, create the StagingMatch container
                 if not staging_match:
+                    # Instantiate and add to both tracking layers instantly
                     staging_match = models.StagingMatch(
                         league_id=league_id,
                         scored_week=week_num,
@@ -106,22 +112,22 @@ def process_weekly_csv(db: Session, league_id: int, df: pd.DataFrame, week_num: 
                         away_team=away_team
                     )
                     db.add(staging_match)
-                    db.flush() # Forces the DB to assign an ID immediately so we can use it below
+                    # Flush is skipped! We pass the live reference memory tree safely instead
+                    staging_match_lookup[staging_key] = staging_match
 
-                # 4. Attach this specific player's prediction to the staging match
+                # Create the staging prediction linked to our memory instance reference
                 staging_pred = models.StagingPredictions(
                     player_id=player_id,
-                    staging_match_id=staging_match.id,
+                    staging_match=staging_match, # SQLAlchemy maps object associations automatically without an ID!
                     home_pred=home,
                     away_pred=away
                 )
                 db.add(staging_pred)
-
                 continue
 
-
+            # Standard prediction updates
             try:
-                home, away = map(int, row[match_name].split("-"))
+                home, away = map(int, str(row[match_name]).split("-"))
             except (ValueError, AttributeError):
                 continue
 
@@ -142,7 +148,7 @@ def process_weekly_csv(db: Session, league_id: int, df: pd.DataFrame, week_num: 
                 count += 1
                 pred_lookup[key] = new_pred 
 
-
+    # 5. One Single Transaction Commit at the Gateway Finish Line
     db.commit()
 
     return {
