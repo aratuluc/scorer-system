@@ -44,15 +44,10 @@ function LeagueDetail() {
   });
 
   // 2. Fetch All Matches and filter down to Unset Matches
-  const { data: allMatches = [] } = useQuery({
+  const { data: unsetMatches = [] } = useQuery({
     queryKey: ["matches", id],
     queryFn: () => getMatches(id, true, 0),
   });
-
-  const unsetMatches = allMatches.filter(
-    (m) => m.home_score === null || m.away_score === null,
-  );
-
   // 3. Mutation to submit fixes and clear state automatically
   const fixMutation = useMutation({
     mutationFn: (payload) => sendUnsetFix(id, payload),
@@ -202,11 +197,17 @@ export function StagingMatchesCard({
               </SelectTrigger>
 
               <SelectContent>
-                {unsetMatches.map((unset) => (
-                  <SelectItem key={unset.id} value={String(unset.id)}>
-                    {`${unset.home_team} vs ${unset.away_team} (Wk ${unset.fixture_week})`}
-                  </SelectItem>
-                ))}
+                {unsetMatches.map((unset) => {
+                  const unsetStrId = String(unset.id);
+                  return (
+                    <SelectItem
+                      key={`staging-fix-option-${match.id}-${unset.id}`}
+                      value={unsetStrId}
+                    >
+                      {`${unset.home_team} vs ${unset.away_team} (Wk ${unset.fixture_week})`}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>

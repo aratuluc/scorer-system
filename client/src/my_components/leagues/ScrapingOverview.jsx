@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
+import { useMutation } from "@tanstack/react-query";
 import {
   getLinks,
   getLeague,
@@ -36,6 +37,7 @@ import {
   AlertDescription,
   AlertTitle,
 } from "@/components/ui/alert";
+import { rebuildEntireLeaderboard } from "@/services/leaderboard_api";
 
 function ScrapingOverview() {
   const { id } = useParams();
@@ -127,7 +129,6 @@ function ScrapingOverview() {
     setPanelStatus("info");
 
     try {
-      // Assuming initializeWeeksAPI is wired up in your api.js layer
       const response = await initializeWeeksAPI(id);
       setCurrentStatusText(
         response
@@ -180,6 +181,34 @@ function ScrapingOverview() {
     setPanelStatus(panelAction);
   };
 
+  // Completed TanStack useMutation configuration with explicit lifecycle status tracking
+  const rebuildLeaderboardMutation = useMutation({
+    mutationFn: () => rebuildEntireLeaderboard(id),
+    onMutate: () => {
+      setLoadingAction("rebuildLeaderboard");
+      setCurrentStatusText(
+        "Rebuilding the entire leaderboard snapshot cache...",
+      );
+      setPanelStatus("info");
+    },
+    onSuccess: (response) => {
+      setCurrentStatusText(
+        response?.detail ||
+          "Leaderboard cache successfully rebuilt from scratch!",
+      );
+      setPanelStatus("success");
+    },
+    onError: (error) => {
+      setPanelStatus("error");
+      const serverMsg =
+        error.response?.data?.detail || "Failed to rebuild leaderboard.";
+      setCurrentStatusText(serverMsg);
+    },
+    onSettled: () => {
+      setLoadingAction(null);
+    },
+  });
+
   return (
     <div className="mt-8 border-t border-border pt-4">
       <div className="grid grid-cols-3 items-center mb-6">
@@ -198,10 +227,10 @@ function ScrapingOverview() {
       {statusText && (
         <Alert
           onClick={() => setCurrentStatusText("")}
-          className={panelStatus === "error" ? "bg-red-100" : ""}
+          className={panelStatus === "error" ? "bg-red-100 border-red-300" : ""}
         >
           <AlertDescription
-            className={`text-lg ${panelStatus === "error" ? "text-red-900" : ""}`}
+            className={`text-lg ${panelStatus === "error" ? "text-red-900 font-medium" : ""}`}
           >
             {statusText}
           </AlertDescription>
@@ -209,7 +238,7 @@ function ScrapingOverview() {
       )}
 
       <div className="pt-4 mt-4">
-        <div className="mb-6 flex gap-3">
+        <div className="mb-6 flex gap-3 overflow-x-auto pb-2">
           <ControlButton
             text={"Initialize Weeks"}
             icon={"❇️"}
@@ -240,6 +269,16 @@ function ScrapingOverview() {
             disabled={loadingAction !== null}
             onClick={autofillPredictions}
           />
+          <ControlButton
+            text={
+              rebuildLeaderboardMutation.isPending
+                ? "Rebuilding..."
+                : "Rebuild Leaderboard"
+            }
+            icon={"🏆"}
+            disabled={loadingAction !== null}
+            onClick={() => rebuildLeaderboardMutation.mutate()}
+          />
         </div>
 
         {/* Structured Configuration Container Dashboard Card */}
@@ -262,7 +301,6 @@ function ScrapingOverview() {
               </CollapsibleTrigger>
 
               <CollapsibleContent className="p-4 bg-muted/20 flex flex-col gap-4">
-                {/* List Container with solid background fallback */}
                 <div className="bg-background rounded-lg border border-border overflow-hidden shadow-inner">
                   {links.length === 0 ? (
                     <p className="p-4 text-muted-foreground text-xs italic">
@@ -275,7 +313,6 @@ function ScrapingOverview() {
                           key={link.id}
                           className="flex items-center justify-between p-3 hover:bg-muted/30 transition-colors"
                         >
-                          {/* Left Elements Wrapper */}
                           <div className="flex items-center gap-3 overflow-hidden">
                             <span className="text-muted-foreground flex-shrink-0">
                               <svg
@@ -311,7 +348,6 @@ function ScrapingOverview() {
                             )}
                           </div>
 
-                          {/* Interactive Commands Element Array */}
                           <div className="flex gap-2">
                             <Button
                               variant="outline"
@@ -338,7 +374,6 @@ function ScrapingOverview() {
                   )}
                 </div>
 
-                {/* Dialog Interface Layer */}
                 <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                   <DialogTrigger asChild>
                     <Button

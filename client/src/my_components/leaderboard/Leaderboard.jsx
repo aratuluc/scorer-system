@@ -1,23 +1,24 @@
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import {
   getLeaderboard,
-  getLeague,
-  getPlayerPredictions,
   getScoredWeeks,
+  getPlayerPredictions,
 } from "../../services/api";
+import { getLeaderboardTitle } from "@/services/leaderboard_api";
 import Header from "../common/Header";
 import Card from "../common/Card";
 import LeaderboardPlayer from "./LeaderboardPlayer";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useQuery } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -25,10 +26,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Spinner } from "@/components/ui/spinner";
-import { useTranslation } from "react-i18next";
-import { Button } from "@/components/ui/button";
-import { getLeaderboardTitle } from "@/services/leaderboard_api";
 
 function Leaderboard() {
   const { t } = useTranslation();
@@ -37,6 +34,7 @@ function Leaderboard() {
   const [players, setPlayers] = useState([]);
   const [currentPlayerID, setCurrentPlayerID] = useState(null);
 
+  // Sync state cleanly with the URL query structure tracking
   const currentWeek = parseInt(searchParams.get("week") || "0", 10);
 
   useEffect(() => {
@@ -53,6 +51,7 @@ function Leaderboard() {
   const third = players[2];
   const remainingPlayers = players.slice(3);
 
+  // Updates the browser address parameters when a new option is clicked
   const handleWeekChange = (value) => {
     setSearchParams({ week: value });
   };
@@ -61,11 +60,7 @@ function Leaderboard() {
     (player) => player.id === currentPlayerID,
   );
 
-  const {
-    data: leagueInfo,
-    isLoading: isLeaguesLoading,
-    isError: isLeaguesError,
-  } = useQuery({
+  const { data: leagueInfo, isLoading: isLeaguesLoading } = useQuery({
     queryKey: ["leagueInfo", id],
     queryFn: () => getLeaderboardTitle(id),
   });
@@ -76,27 +71,33 @@ function Leaderboard() {
         <Spinner />
       ) : (
         <Header title={`${leagueInfo?.title}`} />
-      )}{" "}
+      )}
+
+      {/* Fully Configured Dynamic Dropdown Selection Grid */}
       <div className="mb-6 flex items-center gap-2">
         <span className="text-sm font-medium text-gray-500">
           {t("leaderboard.filter_by")}
         </span>
 
-        <Select>
-          <SelectTrigger>
+        <Select value={String(currentWeek)} onValueChange={handleWeekChange}>
+          <SelectTrigger className="w-[180px]">
             <SelectValue placeholder={t("leaderboard.select_week")} />
           </SelectTrigger>
           <SelectContent>
+            {/* Provide a global view entry fallback anchor */}
+            <SelectItem value="0">{t("leaderboard.overall")}</SelectItem>
             {scoredWeeks.map((week) => {
+              const weekStr = String(week.week_num);
               return (
-                <SelectItem value={week.week_num}>
-                  {t("leaderboard.week")} {week.week_num}
+                <SelectItem value={weekStr} key={`week-option-${week.id}`}>
+                  {t("leaderboard.week")} {weekStr}
                 </SelectItem>
               );
             })}
           </SelectContent>
         </Select>
       </div>
+
       {players.length >= 3 && (
         <div className="flex justify-center items-end h-64 gap-2 mb-10 mt-12 px-4">
           {/* 2nd Place */}
@@ -142,11 +143,12 @@ function Leaderboard() {
           </button>
         </div>
       )}
+
       <Card>
         <div className="flex flex-col gap-2 p-2">
           {remainingPlayers.map((player, index) => (
             <LeaderboardPlayer
-              key={player.player_name}
+              key={`player-list-row-${player.player_id || player.player_name}`}
               playerData={player}
               rank={index + 4}
               onClick={setCurrentPlayerID}
@@ -159,6 +161,7 @@ function Leaderboard() {
           )}
         </div>
       </Card>
+
       <PredictionsModal
         currentPlayerID={currentPlayerID}
         setCurrentPlayerID={setCurrentPlayerID}
@@ -199,7 +202,7 @@ function PredictionsModal({
       open={currentPlayerID !== null}
       onOpenChange={() => setCurrentPlayerID(null)}
     >
-      <DialogContent className={"bg-gray-100 sm:max-w-2xl"}>
+      <DialogContent className="bg-gray-100 sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>
             {t("leaderboard.viewing_predictions", { name: playerName })}
@@ -238,7 +241,7 @@ function PredictionsModal({
 
                         return (
                           <div
-                            key={prediction.id}
+                            key={`pred-row-${prediction.id}`}
                             className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg shadow-sm"
                           >
                             <div className="flex-[2] font-semibold text-gray-800 text-left truncate pr-2">
