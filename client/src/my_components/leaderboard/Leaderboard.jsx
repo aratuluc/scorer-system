@@ -211,42 +211,102 @@ function PredictionsModal({
   }, {});
 
   return (
-    <div
-      key={`pred-row-${prediction.id}`}
-      className="flex flex-col gap-3 p-4 bg-white border border-gray-200 rounded-lg shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-3"
+    <Dialog
+      open={currentPlayerID !== null}
+      onOpenChange={() => setCurrentPlayerID(null)}
     >
-      {/* 1. Teams Section: Left-aligned, breaks cleanly or takes full row width on mobile */}
-      <div className="font-semibold text-gray-800 text-center sm:text-left sm:flex-[2] sm:truncate sm:pr-2">
-        {prediction.home_team}
-        <span className="text-gray-400 font-normal text-xs mx-2">vs</span>
-        {prediction.away_team}
-      </div>
+      <DialogContent className="bg-gray-100 sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>
+            {t("leaderboard.viewing_predictions", { name: playerName })}
+          </DialogTitle>
+          <DialogDescription asChild>
+            <div className="flex flex-col gap-3 mt-4 overflow-y-auto max-h-[60vh] p-1">
+              {result.isLoading && <Spinner />}
+              {result.data?.length === 0 && (
+                <div className="text-center text-gray-500 py-4">
+                  {t("leaderboard.no_predictions")}
+                </div>
+              )}
 
-      {/* 2. Scores Display Matrix: Well-spaced layout section */}
-      <div className="flex justify-center gap-6 text-sm sm:flex-[2]">
-        <div className="flex flex-col items-center">
-          <span className="text-[10px] text-gray-400 uppercase tracking-wider">
-            {t("leaderboard.actual")}
-          </span>
-          <span className="font-bold text-gray-700">{actualScore}</span>
-        </div>
-        <div className="flex flex-col items-center">
-          <span className="text-[10px] text-gray-400 uppercase tracking-wider">
-            {t("leaderboard.predicted")}
-          </span>
-          <span className="font-semibold text-blue-600">{predScore}</span>
-        </div>
-      </div>
+              {Object.entries(groupedPredictions).map(
+                ([weekLabel, weekMatches]) => (
+                  <div key={weekLabel} className="mb-6 last:mb-0">
+                    <h3 className="font-bold text-lg text-gray-700 mb-3 border-b pb-1 sticky top-0 bg-gray-100 z-10">
+                      {weekLabel}
+                    </h3>
+                    <div className="flex flex-col gap-3">
+                      {weekMatches.map((prediction) => {
+                        const actualScore =
+                          prediction.home_score !== null &&
+                          prediction.away_score !== null
+                            ? `${prediction.home_score} - ${prediction.away_score}`
+                            : t("leaderboard.tbd");
+                        const predScore =
+                          prediction.home_pred !== null &&
+                          prediction.away_pred !== null
+                            ? `${prediction.home_pred} - ${prediction.away_pred}`
+                            : t("leaderboard.na");
+                        const badgeColor =
+                          prediction.points > 0
+                            ? "bg-green-100 text-green-700"
+                            : "bg-gray-100 text-gray-500";
 
-      {/* 3. Points Allocation Badge: Centers on mobile, right-aligns on desktop */}
-      <div className="flex justify-center sm:flex-1 sm:justify-end">
-        <span
-          className={`px-3 py-1 rounded text-xs font-bold w-full text-center sm:w-auto ${badgeColor}`}
-        >
-          +{prediction.points} {t("leaderboard.pts")}
-        </span>
-      </div>
-    </div>
+                        // Responsive Mobile Layout Matrix applied cleanly here inside the loop:
+                        return (
+                          <div
+                            key={`pred-row-${prediction.id}`}
+                            className="flex flex-col gap-3 p-4 bg-white border border-gray-200 rounded-lg shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-3"
+                          >
+                            {/* 1. Teams Block */}
+                            <div className="font-semibold text-gray-800 text-center sm:text-left sm:flex-[2] sm:truncate sm:pr-2">
+                              {prediction.home_team}
+                              <span className="text-gray-400 font-normal text-xs mx-2">
+                                vs
+                              </span>
+                              {prediction.away_team}
+                            </div>
+
+                            {/* 2. Score Metrics Grid */}
+                            <div className="flex justify-center gap-6 text-sm sm:flex-[2]">
+                              <div className="flex flex-col items-center">
+                                <span className="text-[10px] text-gray-400 uppercase tracking-wider">
+                                  {t("leaderboard.actual")}
+                                </span>
+                                <span className="font-bold text-gray-700">
+                                  {actualScore}
+                                </span>
+                              </div>
+                              <div className="flex flex-col items-center">
+                                <span className="text-[10px] text-gray-400 uppercase tracking-wider">
+                                  {t("leaderboard.predicted")}
+                                </span>
+                                <span className="font-semibold text-blue-600">
+                                  {predScore}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* 3. Points Badge Anchor */}
+                            <div className="flex justify-center sm:flex-1 sm:justify-end">
+                              <span
+                                className={`px-3 py-1 rounded text-xs font-bold w-full text-center sm:w-auto ${badgeColor}`}
+                              >
+                                +{prediction.points} {t("leaderboard.pts")}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ),
+              )}
+            </div>
+          </DialogDescription>
+        </DialogHeader>
+      </DialogContent>
+    </Dialog>
   );
 }
 
