@@ -107,11 +107,11 @@ function Leaderboard() {
         </Select>
       </div>
 
-      {players.length >= 3 && (
+      {players && players.length >= 3 ? (
         <div className="flex justify-center items-end h-64 gap-2 mb-10 mt-12 px-4">
           {/* 2nd Place */}
           <button
-            onClick={() => setCurrentPlayerID(second.player_id)}
+            onClick={() => setCurrentPlayerID(second?.player_id)}
             className="w-1/3 bg-gray-200 h-40 rounded-t-lg flex flex-col items-center justify-start pt-6 shadow-sm relative transition-transform hover:-translate-y-1"
           >
             <div className="absolute -top-8 text-4xl">🥈</div>
@@ -125,7 +125,7 @@ function Leaderboard() {
 
           {/* 1st Place */}
           <button
-            onClick={() => setCurrentPlayerID(first.player_id)}
+            onClick={() => setCurrentPlayerID(first?.player_id)}
             className="w-1/3 bg-yellow-400 h-56 rounded-t-lg flex flex-col items-center justify-start pt-8 shadow-xl z-10 relative transition-transform hover:-translate-y-1"
           >
             <div className="absolute -top-10 text-5xl">🥇</div>
@@ -139,7 +139,7 @@ function Leaderboard() {
 
           {/* 3rd Place */}
           <button
-            onClick={() => setCurrentPlayerID(third.player_id)}
+            onClick={() => setCurrentPlayerID(third?.player_id)}
             className="w-1/3 bg-orange-200 h-32 rounded-t-lg flex flex-col items-center justify-start pt-4 shadow-sm relative transition-transform hover:-translate-y-1"
           >
             <div className="absolute -top-8 text-3xl">🥉</div>
@@ -150,6 +150,10 @@ function Leaderboard() {
               {third?.points} {t("leaderboard.pts")}
             </span>
           </button>
+        </div>
+      ) : (
+        <div className="text-center text-gray-500 py-10">
+          Loading podium stats...
         </div>
       )}
 
