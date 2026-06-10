@@ -6,7 +6,7 @@ import {
   getLeaderboard,
   getScoredWeeks,
   getPlayerPredictions,
-} from "../../services/api";
+} from "@/services/api";
 import { getLeaderboardTitle } from "@/services/leaderboard_api";
 import Header from "../common/Header";
 import Card from "../common/Card";
@@ -38,7 +38,16 @@ function Leaderboard() {
   const currentWeek = parseInt(searchParams.get("week") || "0", 10);
 
   useEffect(() => {
-    getLeaderboard(id, currentWeek).then(setPlayers);
+    if (!id) return;
+
+    getLeaderboard(id, currentWeek)
+      .then((data) => {
+        console.log("Database payload loaded successfully:", data);
+        setPlayers(data || []);
+      })
+      .catch((err) => {
+        console.error("Network interface connection failure:", err);
+      });
   }, [id, currentWeek]);
 
   const { data: scoredWeeks = [] } = useQuery({
