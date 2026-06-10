@@ -14,6 +14,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    networks:
+      - internal_network
 
   api:   
     build: 
@@ -25,9 +27,13 @@ services:
       ADMIN_SECRET: ${ADMIN_SECRET}
       ADMIN_PWD: ${ADMIN_PWD}
       ADMIN_USERNAME: ${ADMIN_USERNAME}
+      PYTHONUNBUFFERED: "1" # Ensures your background task prints show up in real-time!
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - internal_network
+      - proxy_network
 
   client:
     build:
@@ -36,6 +42,8 @@ services:
     restart: unless-stopped
     depends_on:
       - api
+    networks:
+      - proxy_network
 
   caddy:
     image: caddy:2-alpine
@@ -50,8 +58,17 @@ services:
     depends_on:
       - client
       - api
+    networks:
+      - proxy_network
 
 volumes:
   scorer-system_postgres_prod_data:
   caddy_data:
   caddy_config:
+
+# Explicit network segregation to isolate the database from the public web proxy
+networks:
+  proxy_network:
+    driver: bridge
+  internal_network:
+    driver: bridge
