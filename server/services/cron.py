@@ -68,34 +68,29 @@ def scout_task():
 # 2. THE STRIKER (Runs every 30 seconds)
 # ==========================================
 def striker_task():
-    """
-    The rapid-fire live data tracker. Queries the database for matches 
-    flagged as live, scrapes their updates, and saves goals immediately.
-    """
     db = SessionLocal()
     try:
-        # Check our database context first before hitting external networks
         live_matches = db.query(models.Match).filter(models.Match.is_live == True).all()
-        
         if not live_matches:
-            # If nothing is live, exit instantly. Costs zero overhead.
-            return
+            return # Sleep if no matches are active
             
-        print(f"[STRIKER] Tracking {len(live_matches)} active live matches...")
-        
-        # Group live matches by their league so you don't call the endpoint multiple times
         leagues_to_update = {match.league_id for match in live_matches}
         
         for league_id in leagues_to_update:
-            # Call your scraping file's target week updater
-            # For live games, we can parse the specific current week frame
             current_week = scraping.get_current_week(db, league_id)
-            count, is_still_live = scraping.save_results_for_week(current_week, league_id, db)
             
-            # If the scraper reports that no games are live on the external site, 
-            # we can let the scout turn off the flags on the next patrol.
+            # save_results_for_week returns (match_count, is_live)
+            updated_count, is_still_live = scraping.save_results_for_week(current_week, league_id, db)
+            
+            # TRIGGER ON LIVE GOALS
+            # Only rebuild the cache if a goal actually happened in the last 30 seconds!
+            if updated_count > 0:
+                print(f"[STRIKER] Goal detected in league {league_id}! Rebuilding leaderboard charts...")
+                scoring.rebuild_leaderboard_cache(db, league_id=league_id, week=current_week)
+                scoring.rebuild_leaderboard_cache(db, league_id=league_id, week=0) # Update overall season stats too
+                
     except Exception as e:
-        print(f"[ERROR] Striker rapid task encountered a hurdle: {e}")
+        print(f"[ERROR] Striker rapid task cache sync hurdle: {e}")
     finally:
         db.close()
 
@@ -104,23 +99,28 @@ def striker_task():
 # 3. THE AUDITOR (Runs every 60 mins)
 # ==========================================
 def auditor_task():
-    """
-    The retrospective safety net. Looks back at matches from the last 24 hours 
-    to verify final scores are locked in and scoreboards match reality.
-    """
     print("[INFO] Auditor task running: Verifying retrospective score matrices...")
     db = SessionLocal()
     try:
-        # Look up active leagues that opt-in for validation sweeps
         active_leagues = db.query(models.League).filter(models.League.is_active_for_scraping == True).all()
         
         for league in active_leagues:
-            # Run a full retrospective refresh over the active week frame
+            # 1. Sync the database with any late-breaking score changes
+            # Let's get the current active week frame to target our rebuild
+            current_week = scraping.get_current_week(db, league.id)
+            
+            print(f"[AUDITOR] Refreshing scores for league {league.id}...")
             scraping.refresh_all_weeks(league.id, db)
             
-            # Trigger your leaderboard calculation engine here once scores are confirmed!
-            scoring.recalculate_leaderboard_for_league(league.id, db)
-            print(f"[AUDITOR] Completed sync and scoring recalculation for league context: {league.id}")
+            # 2. TRIGGER THE REBUILD HERE
+            # Rebuild the current week's cache so it matches the freshly scraped data
+            scoring.rebuild_leaderboard_cache(db, league_id=league.id, week=current_week)
+            
+            # If your league leaderboard also calculates overall season stats (Week 0)
+            scoring.rebuild_leaderboard_cache(db, league_id=league.id, week=0)
+            
+            print(f"[AUDITOR] Leaderboard cache successfully refreshed for league {league.id}")
+            
     except Exception as e:
         print(f"[ERROR] Auditor validation task failed: {e}")
     finally:
