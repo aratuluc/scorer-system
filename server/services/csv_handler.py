@@ -7,14 +7,79 @@ import models, schemas
 from services import cron
 from rapidfuzz import process, fuzz
 from typing import Callable, Optional
+import re
 
+ENDPOINT = "https://arsiv.mackolik.com/AjaxHandlers/FixtureHandler.aspx"
+
+# =====================================================================
+# THE AUTHORITATIVE TEAM NAME MAPPING MATRIX
+# =====================================================================
+TEAM_NAME_MAP = {
+    "Kore": "GüneyKore",
+    "G.Afrika": "GüneyAfrika",
+    "Meksika": "Meksika",
+    "Çekya": "Çekya",
+    "Kanada": "Kanada",
+    "Bosna": "Bosna-Hersek",
+    "Katar": "Katar",
+    "İsviçre": "İsviçre",
+    "Brezilya": "Brezilya",
+    "Fas": "Fas",
+    "Haiti": "Haiti",
+    "İskoçya": "İskoçya",
+    "Amerika": "ABD",
+    "Paraguay": "Paraguay",
+    "Avustralya": "Avustralya",
+    "Türkiye": "Türkiye",
+    "Almanya": "Almanya",
+    "Curaçao": "Curaçao",
+    "Fildişi": "FildişiSahili",
+    "Ekvador": "Ekvador",
+    "Hollanda": "Hollanda",
+    "Japonya": "Japonya",
+    "İsveç": "İsveç",
+    "Tunus": "Tunus",
+    "Belçika": "Belçika",
+    "Mısır": "Mısır",
+    "İran": "İran",
+    "YeniZelanda": "YeniZelanda",
+    "İspanya": "İspanya",
+    "YeşilBurun": "YeşilBurunAdaları",
+    "Arabistan": "SuudiArabistan",
+    "Uruguay": "Uruguay",
+    "Fransa": "Fransa",
+    "Senegal": "Senegal",
+    "Irak": "Irak",
+    "Norveç": "Norveç",
+    "Arjantin": "Arjantin",
+    "Cezayir": "Cezayir",
+    "Avusturya": "Avusturya",
+    "Ürdün": "Ürdün",
+    "Portekiz": "Portekiz",
+    "Kongo": "D.KongoCumhuriyeti",
+    "Özbekistan": "Özbekistan",
+    "Kolombiya": "Kolombiya",
+    "İngiltere": "İngiltere",
+    "Hırvatistan": "Hırvatistan",
+    "Gana": "Gana",
+    "Panama": "Panama"
+}
+
+def normalize_team_name(raw_name: str) -> str:
+    if not raw_name:
+        return raw_name
+    cleaned = raw_name.strip()
+    # Intercept with hardcoded translation matrix, otherwise use fallback cleaned string
+    return TEAM_NAME_MAP.get(cleaned, cleaned)
 
 
 def normalize_to_ascii(text):
     """
     Strips Turkish chars to ASCII (gökhan -> gokhan).
     """
-    text = text.replace("İ", "i").replace("I", "ı").lower() # Lowercase first
+    if not text:
+        return ""
+    text = str(text).replace("İ", "i").replace("I", "ı").lower() # Lowercase first
     replacements = {
         "ö": "o", "ü": "u", "ş": "s", "ç": "c", "ğ": "g", "ı": "i"
     }
@@ -60,11 +125,9 @@ def process_weekly_csv(db: Session, league_id: int, df: pd.DataFrame, week_num: 
     count = 0
 
     # 3. Cache Match String Normalization BEFORE entering the loop
-    # This prevents calculating fuzzy match similarity strings repeatedly for every row
     match_list = {match_name: normalize_match_name(match_name, team_map) for match_name in df.columns[2:]}
 
     # Pre-resolve and cache player names to optimize CPU usage
-    # This prevents running process.extractOne repeatedly for identical strings
     resolved_player_cache = {}
     for raw_name in df[df.columns[1]].unique():
         normalized_raw = normalize_to_ascii(str(raw_name))
@@ -83,6 +146,12 @@ def process_weekly_csv(db: Session, league_id: int, df: pd.DataFrame, week_num: 
         
         for match_name, match_tuple in match_list.items():
             home_team, away_team = match_tuple
+            
+            # Defensive Boundary: If either team resolved to None, skip processing to avoid database crash
+            if not home_team or not away_team:
+                print(f"[WARNING] Skipping row evaluation for invalid header layout context: '{match_name}'")
+                continue
+                
             match_id = None
             
             # Check if match is already defined in the database
@@ -112,13 +181,12 @@ def process_weekly_csv(db: Session, league_id: int, df: pd.DataFrame, week_num: 
                         away_team=away_team
                     )
                     db.add(staging_match)
-                    # Flush is skipped! We pass the live reference memory tree safely instead
                     staging_match_lookup[staging_key] = staging_match
 
                 # Create the staging prediction linked to our memory instance reference
                 staging_pred = models.StagingPredictions(
                     player_id=player_id,
-                    staging_match=staging_match, # SQLAlchemy maps object associations automatically without an ID!
+                    staging_match=staging_match, 
                     home_pred=home,
                     away_pred=away
                 )
@@ -157,12 +225,28 @@ def process_weekly_csv(db: Session, league_id: int, df: pd.DataFrame, week_num: 
     }
 
 
+def normalize_match_name(name: str, team_map: dict) -> tuple[str, str]:
+    """
+    Splits 'Meksika-G.Afrika' headers and passes elements through the clean
+    translation map structure before defaulting back to fuzzy match scoring.
+    """
+    raw_parts = name.split("-")
+    if len(raw_parts) < 2:
+        return (None, None)
+        
+    # 1. Apply hardcoded team maps immediately to intercept raw values
+    home_mapped = normalize_team_name(raw_parts[0].strip())
+    away_mapped = normalize_team_name(raw_parts[1].strip())
     
+    # 2. Run fuzzy extraction checks as a fallback loop only
+    home_ascii = normalize_to_ascii(home_mapped)
+    away_ascii = normalize_to_ascii(away_mapped)
+    
+    final_home = run_rapidfzf(home_ascii, team_map, fuzz.partial_ratio) or home_mapped
+    final_away = run_rapidfzf(away_ascii, team_map, fuzz.partial_ratio) or away_mapped
+    
+    return (final_home, final_away)
 
-def normalize_match_name(name:str, map:dict)->tuple[str,str]:
-    parts = [normalize_to_ascii(a.strip()) for a in name.split("-")]
-    parts = [run_rapidfzf(a, map, fuzz.partial_ratio) for a in parts]
-    return (parts[0], parts[1])
 
 def run_rapidfzf(
     string: str, 
@@ -171,25 +255,28 @@ def run_rapidfzf(
     cutoff: int = 80
 ) -> str | None:
     
+    if not string:
+        return None
+        
     result = process.extractOne(
         string, 
         mapping.keys(), 
         scorer=scorer, 
         score_cutoff=cutoff
     )
-    print(result)
     return mapping.get(result[0]) if result else None
 
-def handle_fix(fix_data:list[dict], league_id:int, db:Session):
+
+def handle_fix(fix_data: list[dict], league_id: int, db: Session):
     week_num = fix_data[0].week_num
     league_db = (db.query(models.League)
                     .options(joinedload(models.League.matches), joinedload(models.League.players))
                     .filter(models.League.id == league_id).first())
     league_data = schemas.League.model_validate(league_db)
 
-    team_map = {normalize_to_ascii(a):a for a in league_data.team_map}
-    mid_map = {(a.home_team, a.away_team, a.fixture_week):a.id for a in league_data.matches}
-    pid_map = {a.name:a.id for a in league_data.players}
+    team_map = {normalize_to_ascii(a): a for a in league_data.team_map}
+    mid_map = {(a.home_team, a.away_team, a.fixture_week): a.id for a in league_data.matches}
+    pid_map = {a.name: a.id for a in league_data.players}
 
     week_match_ids = [m.id for m in league_data.matches if m.fixture_week == week_num]
 
@@ -212,12 +299,7 @@ def handle_fix(fix_data:list[dict], league_id:int, db:Session):
         choice = fix.choiceValue
         data = fix.data
         
-
         name = choice if choice != "init" else text
-
-        print("*"*20)
-        print("name", name)
-
         pid = pid_map.get(name)
 
         if not pid:
@@ -232,14 +314,25 @@ def handle_fix(fix_data:list[dict], league_id:int, db:Session):
             update_count += 1
 
         for key, value in data.items():
-            match_tuple = tuple(map(lambda a: run_rapidfzf(normalize_to_ascii(a), team_map, fuzz.partial_ratio), key.split("-")))
+            # Apply identical intercept layout rules to the user resolution fixes inside admin console
+            raw_teams = key.split("-")
+            if len(raw_teams) < 2:
+                continue
+                
+            home_mapped = normalize_team_name(raw_teams[0].strip())
+            away_mapped = normalize_team_name(raw_teams[1].strip())
             
-            if not match_tuple[0] or not match_tuple[1]:
+            home_team = run_rapidfzf(normalize_to_ascii(home_mapped), team_map, fuzz.partial_ratio) or home_mapped
+            away_team = run_rapidfzf(normalize_to_ascii(away_mapped), team_map, fuzz.partial_ratio) or away_mapped
+
+            if not home_team or not away_team:
                 print(f"Warning: Could not parse teams from '{key}'")
                 continue
 
-            home_team, away_team = match_tuple
-            home_pred, away_pred = map(int, value.split("-"))
+            try:
+                home_pred, away_pred = map(int, value.split("-"))
+            except (ValueError, AttributeError):
+                continue
 
             mid = mid_map.get((home_team, away_team, week_num))
             if not mid:
@@ -260,15 +353,13 @@ def handle_fix(fix_data:list[dict], league_id:int, db:Session):
                 )
                 db.add(new_pred)
                 pred_lookup[keyt] = new_pred 
+                
     db.commit()
     return {"new": new_count, "update": update_count}
 
 
-
-
-
 def main():
-    ...
+    pass
 
 
 if __name__ == "__main__":
