@@ -23,6 +23,17 @@ def get_weeks(league_id:int, type:str, db:Session = Depends(get_db)):
         query = db.query(models.Week).join(models.LeagueLink).options(joinedload(models.Week.matches)).filter(models.LeagueLink.league_id == league_id)
         return query.all()
     
+@router.get("/{league_id}/max-week")
+def get_max_scored_week(league_id: int, db: Session = Depends(get_db)):
+    max_week = (
+        db.query(func.max(models.Match.scored_week))
+        .filter(
+            models.Match.league_id == league_id,
+        )
+        .scalar()
+    )
+    return {"max_week": max_week or 0}
+    
 @router.get("/{league_id}/title")
 def get_league_title(league_id:int, db:Session = Depends(get_db)):
     name, year = db.query(models.League.name, models.League.start_year).filter(models.League.id == league_id).first()

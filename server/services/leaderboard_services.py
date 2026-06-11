@@ -70,11 +70,14 @@ def get_leaderboard(league_id: int, db: Session, week: int | None = None):
 
 def get_leaderboard_v2(league_id: int, db: Session, week: int | None = None):
     if(week == 0): 
+        print("Trying to get overall")
         return get_overall_season_leaderboard(league_id, db)
     else:
         leaderboard = db.query(Leaderboard).filter(models.Leaderboard.league_id == league_id, models.Leaderboard.week_num == week).first()
         if not leaderboard:
+            print("Leaderboard not found for league: " + str(league_id))
             return [] # Return an empty array cleanly if no cache exists yet!
+        print("Leaderboard found for league: " + str(league_id))
         return leaderboard.rows
     
 

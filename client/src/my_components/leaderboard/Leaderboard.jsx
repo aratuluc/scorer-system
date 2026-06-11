@@ -7,7 +7,10 @@ import {
   getScoredWeeks,
   getPlayerPredictions,
 } from "@/services/api";
-import { getLeaderboardTitle } from "@/services/leaderboard_api";
+import {
+  getLeaderboardTitle,
+  getMaxScoredWeek,
+} from "@/services/leaderboard_api";
 import Header from "../common/Header";
 import Card from "../common/Card";
 import LeaderboardPlayer from "./LeaderboardPlayer";
@@ -31,28 +34,19 @@ function Leaderboard() {
   const { t } = useTranslation();
   const { id } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [players, setPlayers] = useState([]);
   const [currentPlayerID, setCurrentPlayerID] = useState(null);
 
   // Sync state cleanly with the URL query structure tracking
   const currentWeek = parseInt(searchParams.get("week") || "0", 10);
 
-  useEffect(() => {
-    if (!id) return;
+  const { data: players = [], isLoading: isLeaderboardLoading } = useQuery({
+    queryKey: ["leaderboard", id, currentWeek],
+    queryFn: () => getLeaderboard(id, currentWeek),
+  });
 
-    getLeaderboard(id, currentWeek)
-      .then((data) => {
-        console.log("Database payload loaded successfully:", data);
-        setPlayers(data || []);
-      })
-      .catch((err) => {
-        console.error("Network interface connection failure:", err);
-      });
-  }, [id, currentWeek]);
-
-  const { data: scoredWeeks = [] } = useQuery({
+  const { data: maxWeek } = useQuery({
     queryKey: ["scoredWeeks", id],
-    queryFn: () => getScoredWeeks(id),
+    queryFn: () => getMaxScoredWeek(id),
   });
 
   const first = players[0];
@@ -93,21 +87,18 @@ function Leaderboard() {
             <SelectValue placeholder={t("leaderboard.select_week")} />
           </SelectTrigger>
           <SelectContent>
-            {/* Provide a global view entry fallback anchor */}
-            <SelectItem value="0">{t("leaderboard.overall")}</SelectItem>
-            {scoredWeeks.map((week) => {
-              const weekStr = String(week.week_num);
-              return (
-                <SelectItem value={weekStr} key={`week-option-${week.id}`}>
-                  {t("leaderboard.week")} {weekStr}
-                </SelectItem>
-              );
-            })}
+            {Array.from({ length: maxWeek?.max_week + 1 }, (_, i) => (
+              <SelectItem value={String(i)} key={`week-dropdown-opt-${i}`}>
+                {i === 0
+                  ? t("leaderboard.overall")
+                  : `${t("leaderboard.week")} ${i}`}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
 
-      {players && players.length >= 3 ? (
+      {!isLeaderboardLoading && players && players.length >= 3 ? (
         <div className="flex justify-center items-end h-64 gap-2 mb-10 mt-12 px-4">
           {/* 2nd Place */}
           <button
