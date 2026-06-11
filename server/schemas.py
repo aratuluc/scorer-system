@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel, Field, computed_field
 from enum import Enum
@@ -52,7 +53,8 @@ class Match(MatchBase):
     away_score: Optional[int] = None
     scored_week: Optional[int] = None
     status: Status
-    
+    kickoff_time: datetime
+    is_live: bool
     # Nested competition week tracking details
     week_id: Optional[int] = None
 

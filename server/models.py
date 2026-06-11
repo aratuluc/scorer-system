@@ -1,12 +1,13 @@
 from typing import List
 from typing import Optional
-from sqlalchemy import Boolean, ForeignKey, String, true, Index
+from sqlalchemy import Boolean, ForeignKey, String, true, Index, text
 from database import Base
 from sqlalchemy.orm import Mapped
-from sqlalchemy.orm import mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.orm import relationship
 import enum
-from sqlalchemy import Enum
+from sqlalchemy import Enum, DateTime
+from datetime import datetime
 
 class Status(enum.Enum):
     LIVE="live"
@@ -36,6 +37,8 @@ class LeagueLink(Base):
     league_id: Mapped[int] = mapped_column(ForeignKey("league.id"))
     link: Mapped[str]
     alias: Mapped[str]
+
+    is_live: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
     
     league: Mapped["League"] = relationship(back_populates="links")
 
@@ -55,6 +58,10 @@ class Match(Base):
     away_team: Mapped[str]
     home_score: Mapped[Optional[int]]
     away_score: Mapped[Optional[int]]
+
+    is_live: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
+
+    kickoff_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     
     league: Mapped["League"] = relationship(back_populates="matches")
 
@@ -73,7 +80,7 @@ class StagingMatch(Base):
 
     scored_week: Mapped[Optional[int]]
     home_team: Mapped[str]
-    away_team: Mapped[str]    
+    away_team: Mapped[str]
     
     staging_predictions: Mapped[List["StagingPredictions"]] = relationship(
         back_populates="staging_match", cascade="all, delete-orphan"

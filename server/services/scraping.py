@@ -1,3 +1,6 @@
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 import requests
 import json
 from sqlalchemy import func, or_
@@ -7,16 +10,27 @@ import models, schemas
 
 ENDPOINT = "https://arsiv.mackolik.com/AjaxHandlers/FixtureHandler.aspx"
 
-def calculate_current_week(db: Session, link_id: int):
-    max_week = db.query(func.max(models.Week.week_num))\
-    .filter(models.Week.league_link_id == link_id)\
-    .scalar()
+def get_current_week(db: Session, link_id: int):
+    link = db.query(models.LeagueLink).filter(models.LeagueLink.id == link_id).first()
 
-    if max_week is None:
-        max_week = 0
-    return max_week
+    response = requests.get(ENDPOINT, {"command": "getWeeks", "id": link.link})
 
-def get_all_fixture_week_map(endpoint: models.LeagueLink):
+    if response.status_code != 200:
+        raise Exception(f"Failed while trying to initialize weeks for league {link.link}")
+    
+    weeks = parse_week_data(response.text)
+
+    current_active_week = float('inf')
+
+    for week in weeks:
+        if week["hasPassed"]:
+            continue
+        if week["week_num"] < current_active_week:
+            current_active_week = week["week_num"]
+
+    return current_active_week if current_active_week != float('inf') else 0
+
+def get_all_matches(endpoint: models.LeagueLink):
     matches = []
     i = 1
     print(f"Starting the initialization process for {endpoint.alias or endpoint.link}")
@@ -47,9 +61,40 @@ def parse_matches_for_week(text: str, weeknum: int) -> list[dict]:
         week.append({
             "fixture_week": weeknum, 
             "home_team": normalize_team_name(mac[4]), 
-            "away_team": normalize_team_name(mac[6])
+            "away_team": normalize_team_name(mac[6]),
+            "kickoff_time": parse_kickoff_time(mac[1], mac[2])
         })
     return week
+
+def parse_kickoff_time(day_month: str, hour: str) -> datetime:
+    """
+    Parses 'DD/MM' and 'HH:MM' into a UTC datetime object.
+    Defensively handles instances where 'hour' is overwritten by match statuses
+    like 'MS', 'IY', or live match minutes (e.g., '72').
+    """
+    utc_plus_3 = ZoneInfo("Europe/Istanbul")
+    current_year = datetime.now().year 
+    
+    # Clean up the hour string
+    hour_clean = str(hour).strip().upper()
+    
+    # Regex check: Does it look like standard 'HH:MM' format?
+    if not re.match(r"^\d{2}:\d{2}$", hour_clean):
+        # The game has already started or finished, obscuring the original time.
+        # Fallback to midnight on that match day so the date remains accurate.
+        hour_clean = "00:00"
+    
+    # Combine into our explicit parsing layout
+    raw_time = f"{current_year} {day_month} {hour_clean}" 
+    
+    try:
+        naive_dt = datetime.strptime(raw_time, "%Y %d/%m %H:%M") 
+        match_time_local = naive_dt.replace(tzinfo=utc_plus_3)
+        return match_time_local.astimezone(ZoneInfo("UTC"))
+    except ValueError as e:
+        print(f"[WARNING] Failed parsing date fragment '{raw_time}': {e}")
+        # Secondary fallback to absolute safe minimum if the date string itself is corrupt
+        return datetime.now(ZoneInfo("UTC"))
         
 def normalize_team_name(raw_name):
     return raw_name.strip() if raw_name else raw_name
@@ -57,7 +102,7 @@ def normalize_team_name(raw_name):
 def extract_all_matches(endpoints: list[str]):
     matches = []
     for endpoint in endpoints:
-        matches += get_all_fixture_week_map(endpoint)
+        matches += get_all_matches(endpoint)
     return matches
 
 def initialize_matches(db: Session, league: models.League):
@@ -93,7 +138,7 @@ def initialize_weeks(db: Session, league: models.League):
         response = requests.get(ENDPOINT, {"command": "getWeeks", "id": link.link})
         if response.status_code != 200:
             raise Exception(f"Failed while trying to initialize weeks for league {link.link}")
-        weeks = parse_week_text(response.text)
+        weeks = parse_week_data(response.text)
         model_weeks = [models.Week(**week, league_link_id=link.id) for week in weeks]
         db.add_all(model_weeks)
         db.commit()
@@ -110,7 +155,7 @@ def refresh_all_weeks(league_id: int, db: Session):
     match_map = {(a.home_team, a.away_team, a.week.week_num): a for a in league_db.matches}
 
     for endpoint in league_db.links:
-        for week_num in range(calculate_current_week(db, endpoint.id) + 1):
+        for week_num in range(get_current_week(db, endpoint.id) + 1):
 
             response = requests.get(ENDPOINT, {"command": "getMatches", "id": endpoint.link, "week": week_num})
             lst = clean_response(response.text)
@@ -225,15 +270,14 @@ def clean_response(response_text: str) -> list:
     if not response_text or response_text.strip() == "":
         return []
         
-    # Standardize spaces around empty slots, then safe swap out with explicit nulls
     processed = re.sub(r'\s*', '', response_text)
     processed = processed.replace(',,', ',null,')
-    processed = processed.replace(',,', ',null,') # Run twice to handle stacked values safely
+    processed = processed.replace(',,', ',null,')
     processed = processed.replace("'", '"')
     
     return json.loads(processed)
 
-def parse_week_text(text: str) -> list:
+def parse_week_data(text: str) -> list:
     text = text.replace("'", '"')
     week_list = json.loads(text)
     return [{"week_num": week[0], "date": f"{week[1]}-{week[2]}", "hasPassed": week[3] == 1} for week in week_list]
@@ -253,3 +297,5 @@ def get_incomplete_weeks(db: Session):
         .all()
     )
     return [r[0] for r in results]
+
+        

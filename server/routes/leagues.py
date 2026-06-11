@@ -151,7 +151,7 @@ def get_matches_for_league(league_id:int, week: int | None = None, unset: bool =
     elif week == 0:
         return query.all()
     else:
-        current_week = scraping.calculate_current_week(db, league_id)
+        current_week = scraping.get_current_week(db, league_id)
         query = query.filter(models.Match.fixture_week == current_week)
         pass 
 
