@@ -14,3 +14,8 @@ export const getMaxScoredWeek = async (league_id) => {
   const res = await api.get(`/leaderboards/${league_id}/max-week`);
   return res.data;
 };
+
+export const getPlayers = async (league_id) => {
+  const response = await api.get(`/leaderboards/${league_id}/players`);
+  return response.data;
+};

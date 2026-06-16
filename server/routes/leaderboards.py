@@ -39,4 +39,10 @@ def get_league_title(league_id:int, db:Session = Depends(get_db)):
     name, year = db.query(models.League.name, models.League.start_year).filter(models.League.id == league_id).first()
     return {"title":f"{name.strip()} {year}"}
 
+@router.get("/{league_id}/players", response_model=list[schemas.Player])
+def get_players_for_league(league_id:int, db: Session = Depends(get_db)):
+    lg = db.get(models.League, league_id)
+    if not lg:
+        raise HTTPException(404, "League not found!")
+    return lg.players
 
