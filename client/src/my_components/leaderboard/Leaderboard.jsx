@@ -6,11 +6,11 @@ import {
   getLeaderboard,
   getScoredWeeks,
   getPlayerPredictions,
-  getPlayers,
 } from "@/services/api";
 import {
   getLeaderboardTitle,
   getMaxScoredWeek,
+  getPlayersLeaderboard,
 } from "@/services/leaderboard_api";
 import Header from "../common/Header";
 import Card from "../common/Card";
@@ -344,7 +344,7 @@ function CompareModal({
   // Fetch all players in the league for the dropdown list
   const playersQuery = useQuery({
     queryKey: ["players", leagueID],
-    queryFn: () => getPlayers(leagueID),
+    queryFn: () => getPlayersLeaderboard(leagueID),
     enabled: comparedPlayerID !== null,
   });
 
