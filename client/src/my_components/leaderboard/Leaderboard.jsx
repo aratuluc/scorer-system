@@ -348,11 +348,15 @@ function CompareModal({
     enabled: comparedPlayerID !== null,
   });
 
+  // Parse the opponentID string back into a base-10 number if your API layer requires an integer type
+  const targetOpponentID = opponentID ? parseInt(opponentID, 10) : null;
+
   // Fetch the selected opponent's data
   const opponentQuery = useQuery({
-    queryKey: ["predictions", opponentID, currentWeek],
-    queryFn: () => getPlayerPredictions(leagueID, opponentID, currentWeek),
-    enabled: opponentID !== null,
+    queryKey: ["predictions", targetOpponentID, currentWeek],
+    queryFn: () =>
+      getPlayerPredictions(leagueID, targetOpponentID, currentWeek),
+    enabled: targetOpponentID !== null,
   });
 
   const ownerData = ownerQuery.data || [];
@@ -424,12 +428,18 @@ function CompareModal({
             <div className="grid grid-cols-[1fr_auto_1fr] gap-x-4 gap-y-3 items-center text-center">
               {ownerData.map((match) => {
                 // Find the exact matching game by ID instead of array index
-                const oppMatch = opponentData.find((m) => m.id === match.id);
+                const oppMatch = opponentData.find(
+                  (m) =>
+                    m.home_team === match.home_team &&
+                    m.away_team === match.away_team,
+                );
 
-                const actualScore =
-                  match.home_score !== null && match.away_score !== null
-                    ? `${match.home_score} - ${match.away_score}`
-                    : t("leaderboard.tbd");
+                const isMatchPlayed =
+                  match.home_score !== null && match.away_score !== null;
+
+                const actualScore = isMatchPlayed
+                  ? `${match.home_score} - ${match.away_score}`
+                  : t("leaderboard.tbd");
 
                 const ownerPred = `${match.home_pred} - ${match.away_pred}`;
                 const oppPred =
@@ -440,8 +450,8 @@ function CompareModal({
                 const ownerPoints = match.points || 0;
                 const oppPoints = oppMatch?.points || 0;
 
-                const ownerWon = ownerPoints > oppPoints;
-                const oppWon = oppPoints > ownerPoints;
+                const ownerWon = ownerPoints >= oppPoints && isMatchPlayed;
+                const oppWon = oppPoints >= ownerPoints && isMatchPlayed;
 
                 return (
                   <Fragment key={`comp-row-${match.id}`}>
