@@ -6,6 +6,7 @@ import {
   getLeaderboard,
   getScoredWeeks,
   getPlayerPredictions,
+  getPlayers,
 } from "@/services/api";
 import {
   getLeaderboardTitle,
@@ -29,6 +30,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Button } from "@base-ui/react";
+import { Fragment } from "react";
 
 function Leaderboard() {
   const { t } = useTranslation();
@@ -59,9 +62,7 @@ function Leaderboard() {
     setSearchParams({ week: value });
   };
 
-  const selectedPlayer = players.find(
-    (player) => player.id === currentPlayerID,
-  );
+  const currentPlayer = players.find((p) => p.player_id === currentPlayerID);
 
   const { data: leagueInfo, isLoading: isLeaguesLoading } = useQuery({
     queryKey: ["leagueInfo", id],
@@ -169,7 +170,7 @@ function Leaderboard() {
       <PredictionsModal
         currentPlayerID={currentPlayerID}
         setCurrentPlayerID={setCurrentPlayerID}
-        playerName={selectedPlayer?.player_name}
+        playerName={currentPlayer?.player_name}
         currentWeek={currentWeek}
         leagueID={id}
       />
@@ -191,6 +192,7 @@ function PredictionsModal({
     enabled: currentPlayerID !== null,
   });
   const predictions = result.data || [];
+  const [comparedPlayerID, setComparedPlayerID] = useState(null);
 
   const groupedPredictions = predictions.reduce((acc, prediction) => {
     const weekLabel = prediction.scored_week
@@ -208,9 +210,22 @@ function PredictionsModal({
     >
       <DialogContent className="bg-gray-100 sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>
-            {t("leaderboard.viewing_predictions", { name: playerName })}
-          </DialogTitle>
+          <div className="flex justify-between">
+            <DialogTitle className={"flex items-center justify-between"}>
+              {t("leaderboard.viewing_predictions", { name: playerName })}
+            </DialogTitle>
+            <Button
+              variant="outline"
+              className={
+                "mr-8 border rounded p-1 bg-blue-600 text-white hover:bg-blue-400"
+              }
+              onClick={() => {
+                setComparedPlayerID(currentPlayerID);
+              }}
+            >
+              {t("leaderboard.compare")}
+            </Button>
+          </div>
           <DialogDescription asChild>
             <div className="flex flex-col gap-3 mt-4 overflow-y-auto max-h-[60vh] p-1">
               {result.isLoading && <Spinner />}
@@ -296,6 +311,198 @@ function PredictionsModal({
             </div>
           </DialogDescription>
         </DialogHeader>
+      </DialogContent>
+      <CompareModal
+        comparedPlayerID={comparedPlayerID}
+        setComparedPlayerID={setComparedPlayerID}
+        currentWeek={currentWeek}
+        leagueID={leagueID}
+        comparedPlayerName={playerName}
+      />
+    </Dialog>
+  );
+}
+
+function CompareModal({
+  comparedPlayerID,
+  setComparedPlayerID,
+  comparedPlayerName,
+  currentWeek,
+  leagueID,
+}) {
+  const { t } = useTranslation();
+  const [opponentID, setOpponentID] = useState(null);
+
+  // Fetch the main player's data
+  const ownerQuery = useQuery({
+    queryKey: ["predictions", comparedPlayerID, currentWeek],
+    queryFn: () =>
+      getPlayerPredictions(leagueID, comparedPlayerID, currentWeek),
+    enabled: comparedPlayerID !== null,
+  });
+
+  // Fetch all players in the league for the dropdown list
+  const playersQuery = useQuery({
+    queryKey: ["players", leagueID],
+    queryFn: () => getPlayers(leagueID),
+    enabled: comparedPlayerID !== null,
+  });
+
+  // Fetch the selected opponent's data
+  const opponentQuery = useQuery({
+    queryKey: ["predictions", opponentID, currentWeek],
+    queryFn: () => getPlayerPredictions(leagueID, opponentID, currentWeek),
+    enabled: opponentID !== null,
+  });
+
+  const ownerData = ownerQuery.data || [];
+  const opponentData = opponentQuery.data || [];
+  const playerList = playersQuery.data || [];
+
+  return (
+    <Dialog
+      open={comparedPlayerID !== null}
+      onOpenChange={() => {
+        setComparedPlayerID(null);
+        setOpponentID(null); // Reset choice on exit
+      }}
+    >
+      <DialogContent className="bg-gray-100 sm:max-w-2xl max-h-[85vh] flex flex-col justify-between">
+        <DialogHeader>
+          <DialogTitle className="text-center text-xl font-bold text-gray-800">
+            {t("leaderboard.compare_predictions")}
+          </DialogTitle>
+        </DialogHeader>
+
+        {/* Top Header Selector Row */}
+        <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center text-center p-3 bg-white rounded-lg border border-gray-200 shadow-sm mx-4 my-2">
+          <div className="font-bold text-base text-blue-600 truncate px-2">
+            {comparedPlayerName}
+          </div>
+          <div className="text-xs font-black tracking-widest text-gray-400 bg-gray-100 px-2 py-1 rounded">
+            VS
+          </div>
+          <div className="flex justify-center">
+            <Select
+              value={opponentID || ""}
+              onValueChange={(value) => setOpponentID(value)}
+            >
+              <SelectTrigger className="w-[170px] bg-gray-50 h-9 font-medium text-sm">
+                <SelectValue placeholder={t("leaderboard.selectComparee")} />
+              </SelectTrigger>
+              <SelectContent>
+                {/* Filter out the main player so they can't select themselves */}
+                {playerList
+                  .filter((p) => p.id !== comparedPlayerID)
+                  .map((player) => (
+                    <SelectItem
+                      key={`player-selector-${player.id}`}
+                      value={String(player.id)}
+                    >
+                      {player.name}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Content Body Area */}
+        <div className="flex-1 overflow-y-auto px-4 py-2 mt-2 max-h-[55vh] flex flex-col gap-4">
+          {opponentID === null ? (
+            <div className="text-center text-sm text-gray-400 my-12 italic">
+              {t(
+                "leaderboard.choose_opponent_prompt",
+                "Select an opponent to begin head-to-head comparison",
+              )}
+            </div>
+          ) : opponentQuery.isLoading ? (
+            <div className="flex justify-center items-center my-12">
+              <Spinner />
+            </div>
+          ) : (
+            <div className="grid grid-cols-[1fr_auto_1fr] gap-x-4 gap-y-3 items-center text-center">
+              {ownerData.map((match) => {
+                // Find the exact matching game by ID instead of array index
+                const oppMatch = opponentData.find((m) => m.id === match.id);
+
+                const actualScore =
+                  match.home_score !== null && match.away_score !== null
+                    ? `${match.home_score} - ${match.away_score}`
+                    : t("leaderboard.tbd");
+
+                const ownerPred = `${match.home_pred} - ${match.away_pred}`;
+                const oppPred =
+                  oppMatch !== undefined
+                    ? `${oppMatch.home_pred} - ${oppMatch.away_pred}`
+                    : t("leaderboard.na");
+
+                const ownerPoints = match.points || 0;
+                const oppPoints = oppMatch?.points || 0;
+
+                const ownerWon = ownerPoints > oppPoints;
+                const oppWon = oppPoints > ownerPoints;
+
+                return (
+                  <Fragment key={`comp-row-${match.id}`}>
+                    {/* Game Row Header Label spanning all 3 columns */}
+                    <div className="col-span-3 text-[11px] font-black text-gray-400 uppercase tracking-wider mt-4 border-b border-gray-200/60 pb-1 text-left">
+                      {match.home_team}{" "}
+                      <span className="font-normal lowercase text-gray-400/80 mx-1">
+                        vs
+                      </span>{" "}
+                      {match.away_team}
+                    </div>
+
+                    {/* Left: Player A (Main Player) Guess */}
+                    <div
+                      className={`p-2.5 rounded-xl border text-sm flex flex-col items-center justify-center bg-white ${
+                        ownerWon
+                          ? "border-green-500 bg-green-50/40 shadow-sm ring-1 ring-green-400/20"
+                          : "border-gray-200"
+                      }`}
+                    >
+                      <span className="font-bold text-gray-800">
+                        {ownerPred}
+                      </span>
+                      <span
+                        className={`text-[10px] font-black mt-0.5 ${ownerWon ? "text-green-600" : "text-gray-400"}`}
+                      >
+                        +{ownerPoints} {t("leaderboard.pts")}
+                      </span>
+                    </div>
+
+                    {/* Center: Actual Match Score Line */}
+                    <div className="flex flex-col items-center justify-center min-w-[70px]">
+                      <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">
+                        {t("leaderboard.actual")}
+                      </span>
+                      <span className="text-xs font-black text-gray-600 bg-gray-200/70 px-2 py-1 rounded-md min-w-[50px]">
+                        {actualScore}
+                      </span>
+                    </div>
+
+                    {/* Right: Player B (Selected Opponent) Guess */}
+                    <div
+                      className={`p-2.5 rounded-xl border text-sm flex flex-col items-center justify-center bg-white ${
+                        oppWon
+                          ? "border-green-500 bg-green-50/40 shadow-sm ring-1 ring-green-400/20"
+                          : "border-gray-200"
+                      }`}
+                    >
+                      <span className="font-bold text-gray-800">{oppPred}</span>
+                      <span
+                        className={`text-[10px] font-black mt-0.5 ${oppWon ? "text-green-600" : "text-gray-400"}`}
+                      >
+                        +{oppPoints} {t("leaderboard.pts")}
+                      </span>
+                    </div>
+                  </Fragment>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );

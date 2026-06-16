@@ -12,6 +12,10 @@
     "tbd": "TBD",
     "na": "N/A",
     "viewing_predictions": "{{name}} tahminleri görüntüleniyor.",
-    "week": "Hafta"
+    "week": "Hafta",
+    "compare": "Karşılaştır",
+    "selectComparee": "Lütfen rakip seçin",
+    "choose_opponent_prompt": "Karşılaştırma yapmak için lütfen rakip seçin",
+    "compare_predictions": "Tahmin Karşılaştırma"
   }
 }
