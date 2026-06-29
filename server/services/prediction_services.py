@@ -21,4 +21,4 @@ def get_player_predictions(league_id: int, week_num: int | None, player_id: int,
     if not week_num:
         return query.all()
     else:
-        return query.filter(models.Match.fixture_week == week_num).all()
+        return query.filter(models.Match.scored_week == week_num).all()
