@@ -162,12 +162,51 @@ def process_weekly_csv(db: Session, league_id: int, df: pd.DataFrame, week_num: 
                 
             match_id = None
             
-            # 🏢 LAYER 1: Check if match is already validated and defined in the main database schedule
+            # 🏢 LAYER 1: Check if match is explicitly defined for THIS specific week
             if (home_team, away_team, week_num) in match_lookup:
                 match_id = match_lookup.get((home_team, away_team, week_num))
-                current_match = match_map.get(match_id)
-                if current_match and current_match.scored_week != week_num:
-                    current_match.scored_week = week_num
+            
+            # 🔄 FALLBACK CROSS-REFERENCE: If not found, check if this fixture exists in ANY other week
+            if not match_id:
+                # Scan all league matches for the exact same team combination
+                any_week_match = next(
+                    (m for m in league_db.matches 
+                     if m.home_team == home_team and m.away_team == away_team), 
+                    None
+                )
+                if any_week_match:
+                    match_id = any_week_match.id
+                    # Force update the match context so it knows it is being scored for Week 4 now
+                    any_week_match.scored_week = week_num
+                    # Update our local memory caches so subsequent rows process instantly
+                    match_lookup[(home_team, away_team, week_num)] = match_id
+                    match_map[match_id] = any_week_match
+
+            # 🛠️ CORE ROUTING: If we found a production match (same week or cross-week fallback), save the prediction
+            if match_id:
+                try:
+                    home, away = map(int, str(row[match_name]).split("-"))
+                except (ValueError, AttributeError):
+                    continue
+
+                key = (player_id, match_id)
+
+                if key in pred_lookup:
+                    existing_pred = pred_lookup[key]
+                    existing_pred.home_pred = home
+                    existing_pred.away_pred = away
+                else:
+                    new_pred = models.Prediction(
+                        player_id=player_id,
+                        match_id=match_id,
+                        home_pred=home,
+                        away_pred=away,
+                    )
+                    db.add(new_pred)
+                    count += 1
+                    pred_lookup[key] = new_pred
+                
+                continue # Row processed completely, skip staging entirely
 
             # 🛠️ CORE ROUTING: If the match exists in production tables, run standard updates and skip staging
             if match_id:
