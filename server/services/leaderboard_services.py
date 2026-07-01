@@ -87,86 +87,84 @@ from sqlalchemy.orm import Session
 # and Player, Match, Prediction, Leaderboard are accessible
 
 def rebuild_leaderboard_cache(db: Session, league_id: int, week: int):
-    # Clear existing cache for this week
+    # Clear existing cache for this week entry
     db.query(models.Leaderboard).filter(
         models.Leaderboard.league_id == league_id, 
         models.Leaderboard.week_num == week
     ).delete()
     db.flush()
-    print(f"Rebuilding league {league_id}, week {week}")
-
-    # Query all active players in the league
+    
     players = db.query(models.Player).filter(models.Player.league_id == league_id).all()
-    
-    # Query matches that have scores
-    matches = db.query(models.Match).filter(
-        models.Match.league_id == league_id,
-        models.Match.scored_week == week,
-        models.Match.home_score.isnot(None),
-        models.Match.away_score.isnot(None)
-    ).all()
-    
-    match_ids = {match.id for match in matches}
-    
-    # --- MODIFIED BLOCK ---
-    if not match_ids:
-        print(f"No scored matches found for week {week}. Building 0-point cache for all players.")
-        leaderboard = models.Leaderboard(league_id=league_id, week_num=week)
-        db.add(leaderboard)
+
+    # 🚨 SYSTEM CHECK: If compiling the overall season summary (Week 0)
+    if week == 0:
+        print(f"Compiling Master Season Leaderboard Cache (Week 0) for league {league_id}")
         
-        # Populate the board with all players tied at 0 points, Rank 1
-        for player in players:
-            leaderboard.rows.append(models.LeaderboardRow(
-                player_id=player.id,
-                player_name=player.name, # Or player.player_name depending on your model
-                points=0,
-                rank=1
-            ))
-            
-        db.commit() 
-        return
-    # ----------------------
-    
-    match_map = {match.id: match for match in matches}
-    raw_scores = []
-
-    # Get predictions only for the valid matches
-    all_predictions = db.query(models.Prediction).filter(models.Prediction.match_id.in_(match_ids)).all()
-    pred_map = defaultdict(list)
-    print("Starting the point calculation...")
-    for p in all_predictions:
-        pred_map[p.player_id].append(p)
-    
-    # Calculate scores per player
-    for player in players:
-        player_id = player.id
-        player_name = player.name
-
-        player_predictions = pred_map[player.id]
-
-        player_total = 0
-        for prediction in player_predictions:
-            current_match = match_map.get(prediction.match_id)
-            player_total += evaluate_score(
-                current_match.home_score, 
-                current_match.away_score, 
-                prediction.home_pred, 
-                prediction.away_pred
+        # Calculate the live points sum directly from production prediction records
+        season_scores = (
+            db.query(
+                models.Prediction.player_id,
+                func.sum(models.Prediction.points).label("total_points")
             )
+            .join(models.Match, models.Prediction.match_id == models.Match.id)
+            .filter(models.Match.league_id == league_id, models.Prediction.points.isnot(None))
+            .group_by(models.Prediction.player_id)
+            .all()
+        )
+        score_map = {row.player_id: row.total_points for row in season_scores}
         
-        raw_scores.append({
-            "player_id": player_id,
-            "player_name": player_name,
-            "points": player_total
-        })
+        raw_scores = [
+            {"player_id": p.id, "player_name": p.name, "points": score_map.get(p.id, 0)}
+            for p in players
+        ]
+    else:
+        # --- Standard individual week scoring pipeline (Keep your existing code) ---
+        print(f"Rebuilding league {league_id}, week {week}")
+        matches = db.query(models.Match).filter(
+            models.Match.league_id == league_id,
+            models.Match.scored_week == week,
+            models.Match.home_score.isnot(None),
+            models.Match.away_score.isnot(None)
+        ).all()
+        
+        match_ids = {match.id for match in matches}
+        
+        if not match_ids:
+            print(f"No scored matches found for week {week}. Building 0-point cache for all players.")
+            leaderboard = models.Leaderboard(league_id=league_id, week_num=week)
+            db.add(leaderboard)
+            for player in players:
+                leaderboard.rows.append(models.LeaderboardRow(
+                    player_id=player.id, player_name=player.name, points=0, rank=1
+                ))
+            db.commit() 
+            return
 
-    # Sort descending by points
+        match_map = {match.id: match for match in matches}
+        raw_scores = []
+        all_predictions = db.query(models.Prediction).filter(models.Prediction.match_id.in_(match_ids)).all()
+        pred_map = defaultdict(list)
+        for p in all_predictions:
+            pred_map[p.player_id].append(p)
+        
+        for player in players:
+            player_predictions = pred_map[player.id]
+            player_total = 0
+            for prediction in player_predictions:
+                current_match = match_map.get(prediction.match_id)
+                player_total += evaluate_score(
+                    current_match.home_score, current_match.away_score, 
+                    prediction.home_pred, prediction.away_pred
+                )
+            raw_scores.append({
+                "player_id": player.id, "player_name": player.name, "points": player_total
+            })
+
+    # --- Unified Ranking Generation System (Applies to both configurations) ---
     raw_scores.sort(key=lambda x: x["points"], reverse=True)
-
     leaderboard = models.Leaderboard(league_id=league_id, week_num=week)
     db.add(leaderboard)
 
-    # Apply rankings, accounting for ties
     current_rank = 1
     for index, score_data in enumerate(raw_scores):
         if index > 0 and score_data["points"] < raw_scores[index - 1]["points"]:
@@ -180,38 +178,30 @@ def rebuild_leaderboard_cache(db: Session, league_id: int, week: int):
         ))
 
     db.commit()
-    print("Successfully rebuilt the leaderboard.")
+    print(f"Successfully rebuilt leaderboard cache for week {week}.")
 
 def get_overall_season_leaderboard(league_id: int, db: Session):
-    results = (
-        db.query(
-            models.LeaderboardRow.player_id,
-            models.LeaderboardRow.player_name,
-            func.sum(models.LeaderboardRow.points).label("season_points")
-        )
-        .join(models.Leaderboard)
-        .filter(models.Leaderboard.league_id == league_id)
-        .group_by(models.LeaderboardRow.player_id, models.LeaderboardRow.player_name)
-        .order_by(func.sum(models.LeaderboardRow.points).desc())
-        .all()
-    )
-
-    ranked = []
-    current_rank = 1
+    # Pull the structured Week 0 cache entry cleanly
+    leaderboard = db.query(Leaderboard).filter(
+        models.Leaderboard.league_id == league_id, 
+        models.Leaderboard.week_num == 0
+    ).first()
     
-    for index, row in enumerate(results):
-        if index > 0 and row.season_points < results[index - 1].season_points:
-            current_rank = index + 1
-            
-        ranked.append({
-            "rank": current_rank,
+    if not leaderboard:
+        print(f"Overall cache data matrix not generated yet for league {league_id}")
+        return []
+        
+    # Standardize output serialization format to map your frontend parameters smoothly
+    return [
+        {
+            "rank": row.rank,
             "player_name": row.player_name,
             "player_id": row.player_id,
             "league_id": league_id,
-            "points": row.season_points or 0
-        })
-        
-    return ranked
+            "points": row.points
+        }
+        for row in leaderboard.rows
+    ]
 
 def rebuild_leaderboard_cache_wrapper(league_id: int, week: int):
     db = SessionLocal() 
