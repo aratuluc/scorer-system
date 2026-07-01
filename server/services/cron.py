@@ -81,24 +81,20 @@ def striker_task():
         # Group active processing sequences by their unique league context
         leagues_to_update = {match.league_id for match in live_matches}
         
+        # 🚨 Swapped loop to handle the scraping week mismatch live
         for league_id in leagues_to_update:
             league_live_matches = [m for m in live_matches if m.league_id == league_id]
             
-            # 🚨 FIX: Track the active weeks in play using SCORED_WEEK instead of fixture_week
-            active_weeks_in_play = {m.scored_week for m in league_live_matches if m.scored_week is not None}
-            
-            for week_num in active_weeks_in_play:
-                # Target the scraping function explicitly at the active display week
-                updated_count, is_still_live = scraping.save_results_for_week(week_num, league_id, db)
+            for match in league_live_matches:
+                # 1. Use the original calendar week to actually fetch the live score data!
+                updated_count, is_still_live = scraping.save_results_for_week(match.fixture_week, league_id, db)
                 
-                # Rebuild target cache segments when a score matrix modification occurs
-                if updated_count > 0:
-                    print(f"[STRIKER] Goal detected in league {league_id}, Scored Week {week_num}! Rebuilding caches...")
-                    
-                    # Fire the standalone background wrappers targeting the display week
-                    leaderboard_services.rebuild_leaderboard_cache_wrapper(league_id=league_id, week=week_num)
-                    leaderboard_services.rebuild_leaderboard_cache_wrapper(league_id=league_id, week=0) # Update overall season stats
-                
+                # 2. If a goal happens, rebuild the cache for the week it's actually DISPLAYED in
+                if updated_count > 0 and match.scored_week is not None:
+                    print(f"[STRIKER] Goal detected! Rebuilding display cache for Week {match.scored_week}...")
+                    leaderboard_services.rebuild_leaderboard_cache_wrapper(league_id=league_id, week=match.scored_week)
+                    leaderboard_services.rebuild_leaderboard_cache_wrapper(league_id=league_id, week=0)
+
     except Exception as e:
         print(f"[ERROR] Striker rapid task cache sync hurdle: {e}")
     finally:
