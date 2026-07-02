@@ -69,8 +69,9 @@ def scout_task():
 # ==========================================
 def striker_task():
     """
-    Rapid live scraping engine. Auto-detects target weeks directly from
-    currently active matches scored_week to safely update the correct cache.
+    Rapid live scraping engine. Sweeps live fixtures, updates their scores 
+    using fixture_week for external endpoints, and flushes the display cache
+    for both the scored_week and the overall season stats when goals occur.
     """
     db = SessionLocal()
     try:
@@ -81,25 +82,37 @@ def striker_task():
         # Group active processing sequences by their unique league context
         leagues_to_update = {match.league_id for match in live_matches}
         
-        # 🚨 Swapped loop to handle the scraping week mismatch live
         for league_id in leagues_to_update:
             league_live_matches = [m for m in live_matches if m.league_id == league_id]
             
+            # Keep track of which display weeks actually need a rebuild this cycle
+            weeks_to_rebuild = set()
+            any_league_goals = False
+            
             for match in league_live_matches:
-                # 1. Use the original calendar week to actually fetch the live score data!
+                # 1. Use the original calendar week to target external API endpoints
                 updated_count, is_still_live = scraping.save_results_for_week(match.fixture_week, league_id, db)
                 
-                # 2. If a goal happens, rebuild the cache for the week it's actually DISPLAYED in
-                if updated_count > 0 and match.scored_week is not None:
-                    print(f"[STRIKER] Goal detected! Rebuilding display cache for Week {match.scored_week}...")
-                    leaderboard_services.rebuild_leaderboard_cache_wrapper(league_id=league_id, week=match.scored_week)
-                    leaderboard_services.rebuild_leaderboard_cache_wrapper(league_id=league_id, week=0)
+                # 2. If a goal happens, flag that this match's scored_week needs an update
+                if updated_count > 0:
+                    any_league_goals = True
+                    if match.scored_week is not None:
+                        weeks_to_rebuild.add(match.scored_week)
+            
+            # 3. Rebuild cache layers efficiently after checking all live matches for this league
+            if any_league_goals:
+                for week_num in weeks_to_rebuild:
+                    print(f"[STRIKER] Rebuilding display cache for League {league_id}, Week {week_num}...")
+                    leaderboard_services.rebuild_leaderboard_cache_wrapper(league_id=league_id, week=week_num)
+                
+                # Cleanly trigger a single, authoritative refresh for the overarching Season Leaderboard (Week 0)
+                print(f"[STRIKER] Rebuilding overarching Season Leaderboard (Week 0) for League {league_id}...")
+                leaderboard_services.rebuild_leaderboard_cache_wrapper(league_id=league_id, week=0)
 
     except Exception as e:
         print(f"[ERROR] Striker rapid task cache sync hurdle: {e}")
     finally:
         db.close()
-
 
 # ==========================================
 # 3. THE AUDITOR (Runs every 60 mins)
