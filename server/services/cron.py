@@ -69,9 +69,9 @@ def scout_task():
 # ==========================================
 def striker_task():
     """
-    Rapid live scraping engine. Sweeps live fixtures, updates their scores 
-    using fixture_week for external endpoints, and flushes the display cache
-    for both the scored_week and the overall season stats when goals occur.
+    Rapid live scraping engine. Sweeps live fixtures, updates their scores,
+    finalizes individual prediction points rows, and flushes the display cache
+    for both the scored_week and the overall season stats.
     """
     db = SessionLocal()
     try:
@@ -79,38 +79,48 @@ def striker_task():
         if not live_matches:
             return # Sleep if no matches are active
             
-        # Group active processing sequences by their unique league context
         leagues_to_update = {match.league_id for match in live_matches}
         
         for league_id in leagues_to_update:
             league_live_matches = [m for m in live_matches if m.league_id == league_id]
             
-            # Keep track of which display weeks actually need a rebuild this cycle
             weeks_to_rebuild = set()
             any_league_goals = False
             
             for match in league_live_matches:
-                # 1. Use the original calendar week to target external API endpoints
+                # 1. Fetch live score data using the original calendar week
                 updated_count, is_still_live = scraping.save_results_for_week(match.fixture_week, league_id, db)
                 
-                # 2. If a goal happens, flag that this match's scored_week needs an update
                 if updated_count > 0:
                     any_league_goals = True
                     if match.scored_week is not None:
                         weeks_to_rebuild.add(match.scored_week)
+                        
+                    # 🚨 2. FINALIZATION STEP: Force update the prediction points rows for this match right now!
+                    match_predictions = db.query(models.Prediction).filter(models.Prediction.match_id == match.id).all()
+                    for pred in match_predictions:
+                        # Call your project's native scoring matrix evaluator
+                        pred.points = scoring.evaluate_score(
+                            match.home_score,
+                            match.away_score,
+                            pred.home_pred,
+                            pred.away_pred
+                        )
+                    db.commit() # Flush the finalized points directly to the production table
             
-            # 3. Rebuild cache layers efficiently after checking all live matches for this league
+            # 3. Rebuild cache layers securely using the freshly saved prediction points rows
             if any_league_goals:
                 for week_num in weeks_to_rebuild:
                     print(f"[STRIKER] Rebuilding display cache for League {league_id}, Week {week_num}...")
                     leaderboard_services.rebuild_leaderboard_cache_wrapper(league_id=league_id, week=week_num)
                 
-                # Cleanly trigger a single, authoritative refresh for the overarching Season Leaderboard (Week 0)
+                # Rebuild the master season cache (Week 0) knowing the prediction table has real data
                 print(f"[STRIKER] Rebuilding overarching Season Leaderboard (Week 0) for League {league_id}...")
                 leaderboard_services.rebuild_leaderboard_cache_wrapper(league_id=league_id, week=0)
 
     except Exception as e:
         print(f"[ERROR] Striker rapid task cache sync hurdle: {e}")
+        db.rollback()
     finally:
         db.close()
 
