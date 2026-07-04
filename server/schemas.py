@@ -120,6 +120,7 @@ class DisplayPrediction(PredictionBase):
         extracted_away_team = data.match.away_team
         extracted_home_score = data.match.home_score
         extracted_away_score = data.match.away_score
+        mult = data.match.multiplier
 
         if extracted_home_score is None or extracted_away_score is None:
             calculated_points = 0
@@ -134,7 +135,7 @@ class DisplayPrediction(PredictionBase):
             "away_team": extracted_away_team,
             "home_score": extracted_home_score,
             "away_score": extracted_away_score,
-            "points": calculated_points,
+            "points": calculated_points*mult,
             "scored_week": data.match.scored_week
         }
 

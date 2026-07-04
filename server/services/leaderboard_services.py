@@ -155,7 +155,7 @@ def rebuild_leaderboard_cache(db: Session, league_id: int, week: int):
                 player_total += evaluate_score(
                     current_match.home_score, current_match.away_score, 
                     prediction.home_pred, prediction.away_pred
-                )
+                )* current_match.multiplier
             raw_scores.append({
                 "player_id": player.id, "player_name": player.name, "points": player_total
             })

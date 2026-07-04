@@ -105,7 +105,7 @@ def striker_task():
                             match.away_score,
                             pred.home_pred,
                             pred.away_pred
-                        )
+                        )* match.multiplier
                     db.commit() # Flush the finalized points directly to the production table
             
             # 3. Rebuild cache layers securely using the freshly saved prediction points rows

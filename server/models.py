@@ -58,6 +58,7 @@ class Match(Base):
     away_team: Mapped[str]
     home_score: Mapped[Optional[int]]
     away_score: Mapped[Optional[int]]
+    multiplier: Mapped[int] = mapped_column(default=1, nullable=False)
 
     is_live: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
 
