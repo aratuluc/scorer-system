@@ -287,3 +287,54 @@ async def rebuild_leaderboard(league_id: int, week:int ,background_tasks: Backgr
         "status": "success",
         "message": f"Rebuilding leaderboard for league_id: {league_id} week: {week}"
     }
+
+@router.put("/{league_id}/matches-delta", status_code=200)
+def delta_initialize_matches_for_league(league_id: int, db: Session = Depends(get_db)):
+    """
+    Safely synchronizes newly added links or missing tournament fixtures 
+    without clearing out historical results or destroying user predictions.
+    """
+    league_db = db.query(models.League).options(
+        joinedload(models.League.matches), 
+        joinedload(models.League.links)
+    ).filter_by(id=league_id).first()
+    
+    if not league_db or not league_db.links:
+        raise HTTPException(412, "This league has no links set up!")
+        
+    # Map out exactly what we already have in the database to prevent duplicates
+    existing_fixtures = {
+        (m.home_team, m.away_team, m.fixture_week) for m in league_db.matches
+    }
+    
+    db_weeks = db.query(models.Week).join(models.LeagueLink).filter(
+        models.LeagueLink.league_id == league_id
+    ).all()
+    week_map = {(w.league_link_id, w.week_num): w.id for w in db_weeks}
+    
+    # Extract the matches using your existing scraping parser logic
+    raw_matches = scraping.extract_all_matches(league_db.links)
+    
+    new_matches_added = 0
+    for match_dict in raw_matches:
+        link_id = match_dict.get("league_link_id") or match_dict.peek("league_link_id", None)
+        # Handle structural key differences safely depending on pop/get access mutations
+        if "league_link_id" in match_dict:
+            link_id = match_dict.pop("league_link_id")
+            
+        week_num = match_dict["fixture_week"]
+        key = (match_dict["home_team"].strip(), match_dict["away_team"].strip(), week_num)
+        
+        # 🚨 THE FILTER GUARD: Skip it completely if the fixture is already tracked!
+        if key in existing_fixtures:
+            continue
+            
+        match_dict["week_id"] = week_map.get((link_id, week_num))
+        match_dict["league_id"] = league_id
+        
+        # Safely insert the delta fixture
+        db.add(models.Match(**match_dict))
+        new_matches_added += 1
+        
+    db.commit()
+    return {"status": "success", "new_matches_initialized": new_matches_added}
