@@ -152,9 +152,11 @@ def refresh_all_weeks(league_id: int, db: Session):
                     .options(joinedload(models.League.matches), joinedload(models.League.links))
                     .filter(models.League.id == league_id).first())
 
-    match_map = {(a.home_team, a.away_team, a.week.week_num): a for a in league_db.matches}
+    # Explicitly track historical records using the hidden developer variable (fixture_week)
+    match_map = {(a.home_team, a.away_team, a.fixture_week): a for a in league_db.matches}
 
     for endpoint in league_db.links:
+        # Loop through using the external endpoint's calendar sequence index
         for week_num in range(get_current_week(db, endpoint.id) + 1):
 
             response = requests.get(ENDPOINT, {"command": "getMatches", "id": endpoint.link, "week": week_num})
@@ -168,14 +170,13 @@ def refresh_all_weeks(league_id: int, db: Session):
                 if status == models.Status.NS:
                     continue
 
+                # Match network data directly against your internal tracking identifier (fixture_week)
                 key = (mac[4].strip(), mac[6].strip(), week_num)
                 match = match_map.get(key)
 
                 if not match:
-                    print(f"No match found for {key}")
                     continue
 
-                # Indices 9 and 10 are now stable targets across all modules
                 match.home_score = mac[9]
                 match.away_score = mac[10]
                 match.status = status
@@ -184,7 +185,11 @@ def refresh_all_weeks(league_id: int, db: Session):
     db.commit()
     return count, is_live
         
-def save_results_for_week(week_num, league_id, db: Session):
+def save_results_for_week(fixture_week_num, league_id, db: Session):
+    """
+    Accepts the target scraping week index (fixture_week) to fetch data from 
+    external APIs, while leaving the display week (scored_week) untouched.
+    """
     count = 0
     is_live = False
 
@@ -192,12 +197,11 @@ def save_results_for_week(week_num, league_id, db: Session):
                     .options(joinedload(models.League.matches), joinedload(models.League.links))
                     .filter(models.League.id == league_id).first())
 
+    # Map records cleanly using the hidden scraping variable (fixture_week)
     match_map = {(a.home_team, a.away_team, a.fixture_week): a for a in league_db.matches}
     
-
     for endpoint in league_db.links:
-        # Fixed: Ensure we call Endpoint instead of just appending raw string links directly
-        response = requests.get(ENDPOINT, {"command": "getMatches", "id": endpoint.link, "week": week_num})
+        response = requests.get(ENDPOINT, {"command": "getMatches", "id": endpoint.link, "week": fixture_week_num})
         lst = clean_response(response.text)
 
         for mac in lst:
@@ -208,14 +212,12 @@ def save_results_for_week(week_num, league_id, db: Session):
             if status == models.Status.NS:
                 continue
 
-            key = (mac[4].strip(), mac[6].strip(), week_num)
+            key = (mac[4].strip(), mac[6].strip(), fixture_week_num)
             match = match_map.get(key)
 
             if not match:
-                print(f"No match found for {key}")
                 continue
 
-            # Indices 9 and 10 are now stable targets across all modules
             match.home_score = mac[9]
             match.away_score = mac[10]
             match.status = status
@@ -223,6 +225,7 @@ def save_results_for_week(week_num, league_id, db: Session):
             
     db.commit()
     return count, is_live
+
 
 def get_match_status(value):
     try:
