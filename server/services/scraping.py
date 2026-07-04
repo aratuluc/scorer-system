@@ -226,6 +226,7 @@ def save_results_for_week(week_num, league_id, db: Session):
 
 def get_match_status(value):
     try:
+        # Any minute integer means it's running live on the pitch
         int(value) 
         return models.Status.LIVE
     except ValueError:
@@ -233,12 +234,12 @@ def get_match_status(value):
     
     value = str(value).upper().strip()
 
-    # Enhanced to handle all valid checkout states for major tournament branches
-    if value in ["MS", "UZT", "PEN"]:
+    # Regular full time or penalty shootouts checkout cleanly
+    if value in ["MS", "PEN"]:
         return models.Status.FT
-    elif value == "IY":
-        return models.Status.LIVE
-    elif "+" in value:
+        
+    # Treat ALL extra-time indicators, half-time, and added time as live states
+    elif value in ["IY", "UZ", "UZT"] or "+" in value:
         return models.Status.LIVE
         
     return models.Status.NS
