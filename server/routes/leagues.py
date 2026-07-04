@@ -338,3 +338,88 @@ def delta_initialize_matches_for_league(league_id: int, db: Session = Depends(ge
         
     db.commit()
     return {"status": "success", "new_matches_initialized": new_matches_added}
+
+@router.put("/{league_id}/weeks-delta", status_code=200)
+def delta_initialize_weeks_for_league(league_id: int, db: Session = Depends(get_db)):
+    """
+    Safely fetches and initializes missing week blocks for newly added links
+    without dropping historical weeks or breaking constraint keys.
+    """
+    league_db = db.query(models.League).options(joinedload(models.League.links)).filter_by(id=league_id).first()
+    if not league_db or not league_db.links:
+        raise HTTPException(412, "This league has no links set up!")
+
+    new_weeks_added = 0
+    
+    for link in league_db.links:
+        # 1. Fetch the existing week numbers we already know about for this link
+        existing_week_nums = {w.week_num for w in link.weeks}
+        
+        # 2. Grab the live week payload from the source endpoint
+        response = requests.get(scraping.ENDPOINT, {"command": "getWeeks", "id": link.link})
+        if response.status_code != 200:
+            raise HTTPException(500, f"Failed while trying to fetch weeks for link {link.link}")
+            
+        parsed_weeks = scraping.parse_week_data(response.text)
+        
+        # 3. Delta guard: Only append weeks that do not exist yet
+        for week_dict in parsed_weeks:
+            if week_dict["week_num"] in existing_week_nums:
+                continue
+                
+            db_week = models.Week(**week_dict, league_link_id=link.id)
+            db.add(db_week)
+            new_weeks_added += 1
+            
+    db.commit()
+    return {"status": "success", "new_weeks_initialized": new_weeks_added}
+
+@router.put("/{league_id}/matches-delta", status_code=200)
+def delta_initialize_matches_for_league(league_id: int, db: Session = Depends(get_db)):
+    """
+    Synchronizes newly added tournament fixtures into the database 
+    without clearing out historical results or destroying user predictions.
+    """
+    league_db = db.query(models.League).options(
+        joinedload(models.League.matches), 
+        joinedload(models.League.links)
+    ).filter_by(id=league_id).first()
+    
+    if not league_db or not league_db.links:
+        raise HTTPException(412, "This league has no links set up!")
+        
+    # Map out what we already have in the database to prevent duplicate keys
+    existing_fixtures = {
+        (m.home_team, m.away_team, m.fixture_week) for m in league_db.matches
+    }
+    
+    # Hydrate the full week map including the newly generated delta weeks
+    db_weeks = db.query(models.Week).join(models.LeagueLink).filter(
+        models.LeagueLink.league_id == league_id
+    ).all()
+    week_map = {(w.league_link_id, w.week_num): w.id for w in db_weeks}
+    
+    raw_matches = scraping.extract_all_matches(league_db.links)
+    
+    new_matches_added = 0
+    for match_dict in raw_matches:
+        # Safely extract the link origin tracking ID
+        link_id = match_dict.pop("league_link_id", None)
+        week_num = match_dict["fixture_week"]
+        key = (match_dict["home_team"].strip(), match_dict["away_team"].strip(), week_num)
+        
+        # Skip if already tracked
+        if key in existing_fixtures:
+            continue
+            
+        match_dict["week_id"] = week_map.get((link_id, week_num))
+        match_dict["league_id"] = league_id
+        
+        # Set your new tournament multiplier property default during generation!
+        match_dict["multiplier"] = 1 
+        
+        db.add(models.Match(**match_dict))
+        new_matches_added += 1
+        
+    db.commit()
+    return {"status": "success", "new_matches_initialized": new_matches_added}
