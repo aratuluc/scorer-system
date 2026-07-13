@@ -176,14 +176,39 @@ def add_unknown_fix(league_id: int, fix_data:list[schemas.UnknownFix], db:Sessio
     return {"text": f"Successfully created {result['new']}, updated {result['update']}"}
 
 @router.put("/{league_id}/weeks/{week_num}/matches")
-def fetch_scores_for_week(league_id:int, week_num: int, db:Session = Depends(get_db)):
+def fetch_scores_for_week(
+    league_id: int, 
+    week_num: int, 
+    background_tasks: BackgroundTasks, 
+    db: Session = Depends(get_db)
+):
+    # 1. Scrape the new scores[cite: 2]
     count, is_live = scraping.save_results_for_week(week_num, league_id, db)
-    return {"count": count, "is_live": is_live}
+    
+    # 2. Automatically calculate prediction points and save them to the DB[cite: 2]
+    scoring.finalize(league_id, db)
+    
+    # 3. Automatically rebuild this specific week's leaderboard in the background[cite: 2]
+    background_tasks.add_task(leaderboard_services.rebuild_leaderboard_cache_wrapper, league_id, week_num)
+    
+    return {"count": count, "is_live": is_live, "message": "Scores fetched, finalized, and cache is rebuilding."}
 
 @router.put("/{league_id}/matches/")
-def fetch_scores(league_id:int, db:Session = Depends(get_db)):
+def fetch_scores(
+    league_id: int, 
+    background_tasks: BackgroundTasks, 
+    db: Session = Depends(get_db)
+):
+    # 1. Scrape all active matches across the entire league[cite: 2]
     count, is_live = scraping.refresh_all_weeks(league_id, db)
-    return {"count": count, "is_live": is_live}
+    
+    # 2. Automatically finalize any newly finished matches[cite: 2]
+    scoring.finalize(league_id, db)
+    
+    # 3. Automatically trigger a master season rebuild[cite: 2]
+    background_tasks.add_task(leaderboard_services.rebuild_entire_season_cache_wrapper, league_id)
+    
+    return {"count": count, "is_live": is_live, "message": "Global scores fetched, finalized, and master cache is rebuilding."}
 
 @router.post("/{league_id}/predictions")
 def finalize_predictions(league_id:int, db:Session = Depends(get_db)):
@@ -287,57 +312,6 @@ async def rebuild_leaderboard(league_id: int, week:int ,background_tasks: Backgr
         "status": "success",
         "message": f"Rebuilding leaderboard for league_id: {league_id} week: {week}"
     }
-
-@router.put("/{league_id}/matches-delta", status_code=200)
-def delta_initialize_matches_for_league(league_id: int, db: Session = Depends(get_db)):
-    """
-    Safely synchronizes newly added links or missing tournament fixtures 
-    without clearing out historical results or destroying user predictions.
-    """
-    league_db = db.query(models.League).options(
-        joinedload(models.League.matches), 
-        joinedload(models.League.links)
-    ).filter_by(id=league_id).first()
-    
-    if not league_db or not league_db.links:
-        raise HTTPException(412, "This league has no links set up!")
-        
-    # Map out exactly what we already have in the database to prevent duplicates
-    existing_fixtures = {
-        (m.home_team, m.away_team, m.fixture_week) for m in league_db.matches
-    }
-    
-    db_weeks = db.query(models.Week).join(models.LeagueLink).filter(
-        models.LeagueLink.league_id == league_id
-    ).all()
-    week_map = {(w.league_link_id, w.week_num): w.id for w in db_weeks}
-    
-    # Extract the matches using your existing scraping parser logic
-    raw_matches = scraping.extract_all_matches(league_db.links)
-    
-    new_matches_added = 0
-    for match_dict in raw_matches:
-        link_id = match_dict.get("league_link_id") or match_dict.peek("league_link_id", None)
-        # Handle structural key differences safely depending on pop/get access mutations
-        if "league_link_id" in match_dict:
-            link_id = match_dict.pop("league_link_id")
-            
-        week_num = match_dict["fixture_week"]
-        key = (match_dict["home_team"].strip(), match_dict["away_team"].strip(), week_num)
-        
-        # 🚨 THE FILTER GUARD: Skip it completely if the fixture is already tracked!
-        if key in existing_fixtures:
-            continue
-            
-        match_dict["week_id"] = week_map.get((link_id, week_num))
-        match_dict["league_id"] = league_id
-        
-        # Safely insert the delta fixture
-        db.add(models.Match(**match_dict))
-        new_matches_added += 1
-        
-    db.commit()
-    return {"status": "success", "new_matches_initialized": new_matches_added}
 
 @router.put("/{league_id}/weeks-delta", status_code=200)
 def delta_initialize_weeks_for_league(league_id: int, db: Session = Depends(get_db)):
