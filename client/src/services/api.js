@@ -181,3 +181,14 @@ export const getStagingMatches = async (league_id) => {
   const response = await api.get(`/leagues/${league_id}/staging-matches`);
   return response.data;
 };
+
+export const initializeWeeksDeltaAPI = async (league_id) => {
+  const response = await api.put(`/leagues/${league_id}/weeks-delta`);
+  return response.data;
+};
+
+export const initializeMatchesDeltaAPI = async (league_id) => {
+  const response = await api.put(`/leagues/${league_id}/matches-delta`);
+  return response.data;
+};
+
