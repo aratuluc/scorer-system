@@ -126,6 +126,20 @@ def rebuild_leaderboard_cache(db: Session, league_id: int, week: int):
         
         score_map = {row.player_id: row.total_points for row in weekly_sums}
         
+        # Include custom prediction (season bets) points in overall sum
+        custom_sums = (
+            db.query(
+                models.CustomPrediction.player_id,
+                func.sum(models.CustomPrediction.points).label("total_points")
+            )
+            .join(models.CustomBet, models.CustomPrediction.custom_bet_id == models.CustomBet.id)
+            .filter(models.CustomBet.league_id == league_id)
+            .group_by(models.CustomPrediction.player_id)
+            .all()
+        )
+        for row in custom_sums:
+            score_map[row.player_id] = score_map.get(row.player_id, 0) + (row.total_points or 0)
+        
         raw_scores = [
             {"player_id": p.id, "player_name": p.name, "points": score_map.get(p.id, 0)}
             for p in players

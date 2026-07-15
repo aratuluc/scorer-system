@@ -397,3 +397,205 @@ def delta_initialize_matches_for_league(league_id: int, db: Session = Depends(ge
         
     db.commit()
     return {"status": "success", "new_matches_initialized": new_matches_added}
+
+@router.get("/{league_id}/custom-bets", response_model=list[schemas.CustomBet])
+def get_custom_bets(league_id: int, db: Session = Depends(get_db)):
+    return db.query(models.CustomBet).filter_by(league_id=league_id).all()
+
+@router.post("/{league_id}/custom-bets", response_model=schemas.CustomBet)
+def create_custom_bet(league_id: int, bet: schemas.CustomBetCreate, db: Session = Depends(get_db)):
+    db_league = db.get(models.League, league_id)
+    if not db_league:
+        raise HTTPException(404, "League not found")
+    
+    db_bet = models.CustomBet(
+        league_id=league_id,
+        title=bet.title,
+        result=bet.result
+    )
+    db.add(db_bet)
+    db.flush()
+    
+    # Pre-populate blank predictions for all players in this league
+    for player in db_league.players:
+        db_pred = models.CustomPrediction(
+            custom_bet_id=db_bet.id,
+            player_id=player.id,
+            prediction=None,
+            points=0
+        )
+        db.add(db_pred)
+    
+    db.commit()
+    db.refresh(db_bet)
+    return db_bet
+
+@router.put("/{league_id}/custom-bets/{bet_id}", response_model=schemas.CustomBet)
+def update_custom_bet(
+    league_id: int,
+    bet_id: int,
+    payload: schemas.CustomBetUpdate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
+    db_bet = db.query(models.CustomBet).filter_by(league_id=league_id, id=bet_id).first()
+    if not db_bet:
+        raise HTTPException(404, "Custom bet not found")
+        
+    db_bet.title = payload.title
+    db_bet.result = payload.result
+    
+    # Update predictions for players
+    pred_map = {p.player_id: p for p in db_bet.predictions}
+    for item in payload.predictions:
+        if item.player_id in pred_map:
+            db_pred = pred_map[item.player_id]
+            db_pred.prediction = item.prediction
+            db_pred.points = item.points
+        else:
+            db_pred = models.CustomPrediction(
+                custom_bet_id=bet_id,
+                player_id=item.player_id,
+                prediction=item.prediction,
+                points=item.points
+            )
+            db.add(db_pred)
+            
+    db.commit()
+    db.refresh(db_bet)
+    
+    # Rebuild leaderboard cache
+    background_tasks.add_task(leaderboard_services.rebuild_entire_season_cache_wrapper, league_id)
+    
+    return db_bet
+
+@router.delete("/{league_id}/custom-bets/{bet_id}")
+def delete_custom_bet(league_id: int, bet_id: int, db: Session = Depends(get_db)):
+    db_bet = db.query(models.CustomBet).filter_by(league_id=league_id, id=bet_id).first()
+    if not db_bet:
+        raise HTTPException(404, "Custom bet not found")
+    db.delete(db_bet)
+    db.commit()
+    return {"ok": True}
+
+@router.post("/{league_id}/custom-bets/upload-csv")
+async def upload_custom_bets_csv(
+    league_id: int,
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    if not file.filename.endswith('.csv'):
+        raise HTTPException(status_code=400, detail="File must be a CSV")
+
+    contents = await file.read()
+    try:
+        # Load CSV using pandas supporting UTF-8-SIG to parse BOM
+        df = pd.read_csv(io.BytesIO(contents), encoding="utf-8-sig")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Could not parse CSV: {str(e)}")
+
+    print(f"[DEBUG CSV IMPORT] Read CSV Columns: {list(df.columns)}")
+
+    name_col = None
+    for col in df.columns:
+        col_str = str(col).strip().lower()
+        if "isim" in col_str or "name" in col_str or "username" in col_str or "player" in col_str:
+            name_col = col
+            break
+
+    if not name_col:
+        for col in df.columns:
+            col_str = str(col).strip().lower()
+            if "sim" in col_str or "nam" in col_str:
+                name_col = col
+                break
+
+    if not name_col and len(df.columns) > 1:
+        name_col = df.columns[1]
+        print(f"[DEBUG CSV IMPORT] Name column keyword search failed. Defaulting to 2nd column: '{name_col}'")
+
+    if not name_col:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Could not find player name column. Columns found: {list(df.columns)}"
+        )
+
+    db_league = db.get(models.League, league_id)
+    if not db_league:
+        raise HTTPException(404, "League not found")
+
+    players_map = {p.name.strip().lower(): p.id for p in db_league.players}
+
+    bet_cols = []
+    for idx, col in enumerate(df.columns):
+        col_lower = str(col).lower()
+        if col == name_col:
+            continue
+        if idx == 0 and ("zaman" in col_lower or "time" in col_lower or "tarih" in col_lower or "date" in col_lower):
+            continue
+        bet_cols.append(col)
+
+    # Create/fetch custom bets
+    bets_map = {}
+    for col in bet_cols:
+        title = col.strip()
+        db_bet = db.query(models.CustomBet).filter_by(league_id=league_id, title=title).first()
+        if not db_bet:
+            db_bet = models.CustomBet(league_id=league_id, title=title, result=None)
+            db.add(db_bet)
+            db.flush()
+        bets_map[title] = db_bet
+
+    matched_players_count = 0
+    unmatched_names = []
+    predictions_created_count = 0
+    predictions_updated_count = 0
+
+    for _, row in df.iterrows():
+        raw_name = str(row[name_col]).strip()
+        name_key = raw_name.lower()
+
+        player_id = players_map.get(name_key)
+        if not player_id:
+            unmatched_names.append(raw_name)
+            continue
+
+        matched_players_count += 1
+
+        for col in bet_cols:
+            title = col.strip()
+            db_bet = bets_map[title]
+            pred_value = str(row[col]).strip() if pd.notna(row[col]) else None
+
+            db_pred = db.query(models.CustomPrediction).filter_by(
+                custom_bet_id=db_bet.id,
+                player_id=player_id
+            ).first()
+
+            if db_pred:
+                db_pred.prediction = pred_value
+                predictions_updated_count += 1
+            else:
+                db_pred = models.CustomPrediction(
+                    custom_bet_id=db_bet.id,
+                    player_id=player_id,
+                    prediction=pred_value,
+                    points=0
+                )
+                db.add(db_pred)
+                predictions_created_count += 1
+
+    db.commit()
+
+    # Rebuild overall leaderboard cache
+    background_tasks.add_task(leaderboard_services.rebuild_entire_season_cache_wrapper, league_id)
+
+    return {
+        "status": "success",
+        "bets_count": len(bet_cols),
+        "matched_players": matched_players_count,
+        "unmatched_players": unmatched_names,
+        "predictions_created": predictions_created_count,
+        "predictions_updated": predictions_updated_count
+    }

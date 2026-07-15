@@ -30,6 +30,9 @@ class League(Base):
 
     players: Mapped[List["Player"]] = relationship("Player", back_populates="league")
     is_active_for_scraping: Mapped[bool] = False
+    custom_bets: Mapped[List["CustomBet"]] = relationship(
+        back_populates="league", cascade="all, delete-orphan"
+    )
 
 class LeagueLink(Base):
     __tablename__ = "league_link"
@@ -164,3 +167,26 @@ class LeaderboardRow(Base):
     player_name: Mapped[str]
     points: Mapped[int]
     rank: Mapped[int]
+
+class CustomBet(Base):
+    __tablename__ = "custom_bet"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    league_id: Mapped[int] = mapped_column(ForeignKey("league.id"))
+    title: Mapped[str] = mapped_column(String(100))
+    result: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+
+    league: Mapped["League"] = relationship(back_populates="custom_bets")
+    predictions: Mapped[List["CustomPrediction"]] = relationship(
+        back_populates="custom_bet", cascade="all, delete-orphan"
+    )
+
+class CustomPrediction(Base):
+    __tablename__ = "custom_prediction"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    custom_bet_id: Mapped[int] = mapped_column(ForeignKey("custom_bet.id", ondelete="CASCADE"))
+    player_id: Mapped[int] = mapped_column(ForeignKey("player.id", ondelete="CASCADE"))
+    prediction: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    points: Mapped[Optional[int]] = mapped_column(default=0, nullable=True)
+
+    custom_bet: Mapped["CustomBet"] = relationship(back_populates="predictions")
+    player: Mapped["Player"] = relationship()

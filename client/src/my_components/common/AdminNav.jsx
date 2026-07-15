@@ -1,5 +1,5 @@
 import { Link, useLocation, useParams } from "react-router-dom";
-import { LayoutDashboard, Calendar, RefreshCw, ArrowLeft } from "lucide-react";
+import { LayoutDashboard, Calendar, RefreshCw, ArrowLeft, Award } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function AdminNav({ leagueName }) {
@@ -24,6 +24,12 @@ function AdminNav({ leagueName }) {
       path: `/leagues/${id}/scrape`,
       icon: RefreshCw,
       active: location.pathname.endsWith("/scrape"),
+    },
+    {
+      name: "Season Bets",
+      path: `/leagues/${id}/custom-bets`,
+      icon: Award,
+      active: location.pathname.endsWith("/custom-bets"),
     },
   ];
 

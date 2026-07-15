@@ -6,7 +6,9 @@ import {
   getLeaderboard,
   getScoredWeeks,
   getPlayerPredictions,
+  getCustomBets,
 } from "@/services/api";
+import { Trophy } from "lucide-react";
 import {
   getLeaderboardTitle,
   getMaxScoredWeek,
@@ -192,6 +194,12 @@ function PredictionsModal({
     enabled: currentPlayerID !== null,
   });
   const predictions = result.data || [];
+  const customBetsQuery = useQuery({
+    queryKey: ["customBets", leagueID],
+    queryFn: () => getCustomBets(leagueID),
+    enabled: currentPlayerID !== null && currentWeek === 0,
+  });
+  const customBets = customBetsQuery.data || [];
   const [comparedPlayerID, setComparedPlayerID] = useState(null);
 
   const groupedPredictions = predictions.reduce((acc, prediction) => {
@@ -229,7 +237,69 @@ function PredictionsModal({
           <DialogDescription asChild>
             <div className="flex flex-col gap-3 mt-4 overflow-y-auto max-h-[60vh] p-1">
               {result.isLoading && <Spinner />}
-              {result.data?.length === 0 && (
+
+              {currentWeek === 0 && customBets.length > 0 && (
+                <div className="mb-6 bg-white p-4 border border-gray-200 rounded-xl shadow-sm">
+                  <h3 className="font-extrabold text-sm text-slate-800 mb-3 flex items-center gap-1.5 border-b pb-2">
+                    <Trophy className="w-4 h-4 text-amber-500" />
+                    <span>{t("leaderboard.season_bets")}</span>
+                  </h3>
+                  <div className="flex flex-col gap-3.5">
+                    {customBets.map((bet) => {
+                      const playerPred = bet.predictions.find(
+                        (p) => p.player_id === currentPlayerID
+                      );
+                      const predText = playerPred?.prediction || t("leaderboard.na");
+                      const actualText = bet.result || t("leaderboard.tbd");
+                      const points = playerPred?.points || 0;
+                      const badgeColor =
+                        points > 0
+                          ? "bg-green-50 text-green-700 border-green-200"
+                          : "bg-gray-50 text-gray-400 border-gray-200";
+
+                      return (
+                        <div
+                          key={`custom-bet-modal-${bet.id}`}
+                          className="flex flex-col gap-2 pb-3 last:pb-0 border-b last:border-0 border-slate-100 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <div className="font-bold text-slate-700 text-xs sm:flex-[2] sm:pr-2">
+                            {bet.title}
+                          </div>
+                          
+                          <div className="flex gap-4 text-xs sm:flex-[2] justify-start sm:justify-center">
+                            <div className="flex flex-col">
+                              <span className="text-[9px] text-gray-400 uppercase tracking-wider font-semibold">
+                                {t("leaderboard.actual")}
+                              </span>
+                              <span className="font-bold text-slate-600">
+                                {actualText}
+                              </span>
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-[9px] text-gray-400 uppercase tracking-wider font-semibold">
+                                {t("leaderboard.predicted")}
+                              </span>
+                              <span className="font-bold text-blue-600">
+                                {predText}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex sm:flex-1 sm:justify-end items-center">
+                            <span
+                              className={`px-2.5 py-0.5 rounded border text-[10px] font-extrabold font-mono text-center ${badgeColor}`}
+                            >
+                              {points} {t("leaderboard.pts")}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {result.data?.length === 0 && customBets.length === 0 && (
                 <div className="text-center text-gray-500 py-4">
                   {t("leaderboard.no_predictions")}
                 </div>

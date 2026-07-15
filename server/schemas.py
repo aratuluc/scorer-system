@@ -191,7 +191,40 @@ class LeaderboardRow(BaseModel):
 
     model_config = {"from_attributes": True}
 
+#=== CUSTOM BET ===
 
+class CustomPredictionBase(BaseModel):
+    player_id: int
+    prediction: Optional[str] = None
+    points: Optional[int] = 0
+
+class CustomPredictionCreate(CustomPredictionBase):
+    pass
+
+class CustomPrediction(CustomPredictionBase):
+    id: int
+    custom_bet_id: int
+    
+    model_config = {"from_attributes": True}
+
+class CustomBetBase(BaseModel):
+    title: str
+    result: Optional[str] = None
+
+class CustomBetCreate(CustomBetBase):
+    pass
+
+class CustomBet(CustomBetBase):
+    id: int
+    league_id: int
+    predictions: List[CustomPrediction] = []
+    
+    model_config = {"from_attributes": True}
+
+class CustomBetUpdate(BaseModel):
+    title: str
+    result: Optional[str] = None
+    predictions: List[CustomPredictionBase]
 
 League.model_rebuild()
 Match.model_rebuild()
@@ -199,3 +232,5 @@ PlayerLeaderboard.model_rebuild()
 Prediction.model_rebuild()
 LinkResponse.model_rebuild()
 Week.model_rebuild()
+CustomPrediction.model_rebuild()
+CustomBet.model_rebuild()

@@ -192,3 +192,36 @@ export const initializeMatchesDeltaAPI = async (league_id) => {
   return response.data;
 };
 
+export const getCustomBets = async (league_id) => {
+  const response = await api.get(`/leagues/${league_id}/custom-bets`);
+  return response.data;
+};
+
+export const createCustomBet = async (league_id, betData) => {
+  const response = await api.post(`/leagues/${league_id}/custom-bets`, betData);
+  return response.data;
+};
+
+export const updateCustomBet = async (league_id, bet_id, payload) => {
+  const response = await api.put(`/leagues/${league_id}/custom-bets/${bet_id}`, payload);
+  return response.data;
+};
+
+export const deleteCustomBet = async (league_id, bet_id) => {
+  const response = await api.delete(`/leagues/${league_id}/custom-bets/${bet_id}`);
+  return response.data;
+};
+
+export const uploadCustomBetsCSV = async (league_id, fileObject) => {
+  const formData = new FormData();
+  formData.append("file", fileObject);
+  const response = await api.post(`/leagues/${league_id}/custom-bets/upload-csv`, formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+  return response.data;
+};
+
+
+

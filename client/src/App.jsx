@@ -1,6 +1,7 @@
 import LeagueList from "./my_components/leagues/LeagueList";
 import LeagueDetail from "./my_components/leagues/LeagueDetail";
 import ScrapingOverview from "./my_components/leagues/ScrapingOverview";
+import CustomBetsOverview from "./my_components/leagues/CustomBetsOverview";
 
 import LeaderboardList from "./my_components/leaderboard/LeaderboardList";
 import Leaderboard from "./my_components/leaderboard/Leaderboard";
@@ -25,6 +26,7 @@ function App() {
             <Route path="/leagues/:id" element={<LeagueDetail />} />
             <Route path="/leagues/:id/scrape" element={<ScrapingOverview />} />
             <Route path="/leagues/:id/weeks" element={<WeekOverview />} />
+            <Route path="/leagues/:id/custom-bets" element={<CustomBetsOverview />} />
 
             <Route path="/" element={<LeaderboardList />} />
             <Route path="/leaderboard/:id" element={<Leaderboard />} />
