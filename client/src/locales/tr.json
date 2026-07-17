@@ -17,6 +17,9 @@
     "selectComparee": "Lütfen rakip seçin",
     "choose_opponent_prompt": "Karşılaştırma yapmak için lütfen rakip seçin",
     "compare_predictions": "Tahmin Karşılaştırma",
-    "season_bets": "Sezon Bahisleri"
+    "season_bets": "Sezon Bahisleri",
+    "overall_entire": "Genel Sıralama (Tümü)",
+    "overall_weekly": "Genel Sıralama (Haftalık Maçlar)",
+    "overall_season": "Genel Sıralama (Sezon Bahisleri)"
   }
 }

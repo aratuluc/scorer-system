@@ -86,17 +86,30 @@ function Leaderboard() {
         </span>
 
         <Select value={String(currentWeek)} onValueChange={handleWeekChange}>
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="w-[260px] bg-white border border-gray-200">
             <SelectValue placeholder={t("leaderboard.select_week")} />
           </SelectTrigger>
-          <SelectContent>
-            {Array.from({ length: maxWeek?.max_week + 1 }, (_, i) => (
-              <SelectItem value={String(i)} key={`week-dropdown-opt-${i}`}>
-                {i === 0
-                  ? t("leaderboard.overall")
-                  : `${t("leaderboard.week")} ${i}`}
-              </SelectItem>
-            ))}
+          <SelectContent className="bg-white border border-gray-200 shadow-md">
+            <SelectItem value="0" className="font-semibold text-slate-800">
+              {t("leaderboard.overall_entire")}
+            </SelectItem>
+            <SelectItem value="-1" className="font-semibold text-slate-800">
+              {t("leaderboard.overall_weekly")}
+            </SelectItem>
+            <SelectItem value="-2" className="font-semibold text-slate-800">
+              {t("leaderboard.overall_season")}
+            </SelectItem>
+
+            {maxWeek?.max_week > 0 && <div className="h-px bg-slate-100 my-1" />}
+
+            {Array.from({ length: maxWeek?.max_week || 0 }, (_, i) => {
+              const weekNum = i + 1;
+              return (
+                <SelectItem value={String(weekNum)} key={`week-dropdown-opt-${weekNum}`}>
+                  {`${t("leaderboard.week")} ${weekNum}`}
+                </SelectItem>
+              );
+            })}
           </SelectContent>
         </Select>
       </div>
@@ -197,7 +210,7 @@ function PredictionsModal({
   const customBetsQuery = useQuery({
     queryKey: ["customBets", leagueID],
     queryFn: () => getCustomBets(leagueID),
-    enabled: currentPlayerID !== null && currentWeek === 0,
+    enabled: currentPlayerID !== null && (currentWeek === 0 || currentWeek === -2),
   });
   const customBets = customBetsQuery.data || [];
   const [comparedPlayerID, setComparedPlayerID] = useState(null);
@@ -222,23 +235,25 @@ function PredictionsModal({
             <DialogTitle className={"flex items-center justify-between"}>
               {t("leaderboard.viewing_predictions", { name: playerName })}
             </DialogTitle>
-            <Button
-              variant="outline"
-              className={
-                "mr-8 border rounded p-1 bg-blue-600 text-white hover:bg-blue-400"
-              }
-              onClick={() => {
-                setComparedPlayerID(currentPlayerID);
-              }}
-            >
-              {t("leaderboard.compare")}
-            </Button>
+            {currentWeek !== -2 && (
+              <Button
+                variant="outline"
+                className={
+                  "mr-8 border rounded p-1 bg-blue-600 text-white hover:bg-blue-400"
+                }
+                onClick={() => {
+                  setComparedPlayerID(currentPlayerID);
+                }}
+              >
+                {t("leaderboard.compare")}
+              </Button>
+            )}
           </div>
           <DialogDescription asChild>
             <div className="flex flex-col gap-3 mt-4 overflow-y-auto max-h-[60vh] p-1">
               {result.isLoading && <Spinner />}
 
-              {currentWeek === 0 && customBets.length > 0 && (
+              {(currentWeek === 0 || currentWeek === -2) && customBets.length > 0 && (
                 <div className="mb-6 bg-white p-4 border border-gray-200 rounded-xl shadow-sm">
                   <h3 className="font-extrabold text-sm text-slate-800 mb-3 flex items-center gap-1.5 border-b pb-2">
                     <Trophy className="w-4 h-4 text-amber-500" />
@@ -305,7 +320,7 @@ function PredictionsModal({
                 </div>
               )}
 
-              {Object.entries(groupedPredictions).map(
+              {currentWeek !== -2 && Object.entries(groupedPredictions).map(
                 ([weekLabel, weekMatches]) => (
                   <div key={weekLabel} className="mb-6 last:mb-0">
                     <h3 className="font-bold text-lg text-gray-700 mb-3 border-b pb-1 sticky top-0 bg-gray-100 z-10">

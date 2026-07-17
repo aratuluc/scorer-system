@@ -18,7 +18,7 @@ def get_player_predictions(league_id: int, week_num: int | None, player_id: int,
         .order_by(models.Match.scored_week.asc(), models.Match.kickoff_time.asc())
     )
 
-    if not week_num:
+    if week_num is None or week_num <= 0:
         return query.all()
     else:
         return query.filter(models.Match.scored_week == week_num).all()

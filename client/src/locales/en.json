@@ -13,6 +13,9 @@
     "na": "N/A",
     "viewing_predictions": "Viewing predictions for {{name}}",
     "week": "Week",
-    "season_bets": "Season Bets"
+    "season_bets": "Season Bets",
+    "overall_entire": "Overall Standings (Entire)",
+    "overall_weekly": "Overall Standings (Weekly Matches)",
+    "overall_season": "Overall Standings (Season Bets)"
   }
 }

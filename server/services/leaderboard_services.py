@@ -69,9 +69,9 @@ def get_leaderboard(league_id: int, db: Session, week: int | None = None):
     return ranked_leaderboard
 
 def get_leaderboard_v2(league_id: int, db: Session, week: int | None = None):
-    if(week == 0): 
-        print("Trying to get overall")
-        return get_overall_season_leaderboard(league_id, db)
+    if week in [0, -1, -2]: 
+        print(f"Trying to get overall board type: {week}")
+        return get_overall_season_leaderboard(league_id, db, w=week)
     else:
         leaderboard = db.query(Leaderboard).filter(models.Leaderboard.league_id == league_id, models.Leaderboard.week_num == week).first()
         if not leaderboard:
@@ -103,13 +103,29 @@ def rebuild_leaderboard_cache(db: Session, league_id: int, week: int):
     players = db.query(models.Player).filter(models.Player.league_id == league_id).all()
 
     # =========================================================
-    # WEEK 0: THE OVERALL AGGREGATOR
+    # WEEK 0: THE OVERALL AGGREGATOR (Compiles 0, -1, and -2)
     # =========================================================
     if week == 0:
-        print(f"Compiling Master Season Leaderboard Cache (Week 0) for league {league_id}")
+        print(f"Compiling Master Season Leaderboard Caches (0, -1, -2) for league {league_id}")
         
-        # Pull the absolute sum of all individual WEEKLY cache rows.
-        # This guarantees the overall board perfectly matches the sum of the weeks.
+        # Clear existing caches
+        db.query(models.Leaderboard).filter(
+            models.Leaderboard.league_id == league_id, 
+            models.Leaderboard.week_num.in_([0, -1, -2])
+        ).delete()
+        db.flush()
+        
+        # Subquery to select only the latest leaderboard ID for each week (prevents double-counting duplicate entries)
+        latest_leaderboard_subquery = (
+            db.query(func.max(models.Leaderboard.id))
+            .filter(
+                models.Leaderboard.league_id == league_id,
+                models.Leaderboard.week_num > 0
+            )
+            .group_by(models.Leaderboard.week_num)
+        )
+
+        # Pull weekly matches points sums from only the latest leaderboard versions
         weekly_sums = (
             db.query(
                 models.LeaderboardRow.player_id,
@@ -117,16 +133,14 @@ def rebuild_leaderboard_cache(db: Session, league_id: int, week: int):
             )
             .join(models.Leaderboard, models.LeaderboardRow.leaderboard_id == models.Leaderboard.id)
             .filter(
-                models.Leaderboard.league_id == league_id,
-                models.Leaderboard.week_num > 0  # Explicitly only sum actual weeks
+                models.Leaderboard.id.in_(latest_leaderboard_subquery)
             )
             .group_by(models.LeaderboardRow.player_id)
             .all()
         )
+        weekly_map = {row.player_id: row.total_points for row in weekly_sums}
         
-        score_map = {row.player_id: row.total_points for row in weekly_sums}
-        
-        # Include custom prediction (season bets) points in overall sum
+        # Pull custom predictions (season bets) points sums
         custom_sums = (
             db.query(
                 models.CustomPrediction.player_id,
@@ -137,13 +151,48 @@ def rebuild_leaderboard_cache(db: Session, league_id: int, week: int):
             .group_by(models.CustomPrediction.player_id)
             .all()
         )
-        for row in custom_sums:
-            score_map[row.player_id] = score_map.get(row.player_id, 0) + (row.total_points or 0)
+        custom_map = {row.player_id: row.total_points for row in custom_sums}
         
-        raw_scores = [
-            {"player_id": p.id, "player_name": p.name, "points": score_map.get(p.id, 0)}
-            for p in players
-        ]
+        # Generate the three standings lists
+        for w in [0, -1, -2]:
+            score_map = {}
+            for p in players:
+                w_pts = weekly_map.get(p.id, 0) or 0
+                c_pts = custom_map.get(p.id, 0) or 0
+                
+                if w == 0:
+                    score_map[p.id] = w_pts + c_pts
+                elif w == -1:
+                    score_map[p.id] = w_pts
+                elif w == -2:
+                    score_map[p.id] = c_pts
+                    
+            raw_scores = [
+                {"player_id": p.id, "player_name": p.name, "points": score_map.get(p.id, 0)}
+                for p in players
+            ]
+            
+            raw_scores.sort(key=lambda x: x["points"], reverse=True)
+            
+            leaderboard = models.Leaderboard(league_id=league_id, week_num=w)
+            db.add(leaderboard)
+            db.flush()
+            
+            current_rank = 1
+            for index, score_data in enumerate(raw_scores):
+                if index > 0 and score_data["points"] < raw_scores[index - 1]["points"]:
+                    current_rank = index + 1
+                
+                leaderboard.rows.append(models.LeaderboardRow(
+                    player_id=score_data["player_id"],
+                    player_name=score_data["player_name"],
+                    points=score_data["points"],
+                    rank=current_rank
+                ))
+                
+        db.commit()
+        print(f"Successfully rebuilt all overall leaderboards (0, -1, -2) for league {league_id}.")
+        return
 
     # =========================================================
     # WEEK > 0: THE DYNAMIC CALCULATOR
@@ -217,15 +266,15 @@ def rebuild_leaderboard_cache(db: Session, league_id: int, week: int):
     print(f"Successfully rebuilt leaderboard cache for week {week}.")
 
 
-def get_overall_season_leaderboard(league_id: int, db: Session):
-    # Pull the structured Week 0 cache entry cleanly
+def get_overall_season_leaderboard(league_id: int, db: Session, w: int = 0):
+    # Pull the structured cache entry cleanly
     leaderboard = db.query(Leaderboard).filter(
         models.Leaderboard.league_id == league_id, 
-        models.Leaderboard.week_num == 0
+        models.Leaderboard.week_num == w
     ).first()
     
     if not leaderboard:
-        print(f"Overall cache data matrix not generated yet for league {league_id}")
+        print(f"Overall cache data matrix w={w} not generated yet for league {league_id}")
         return []
         
     # Standardize output serialization format to map your frontend parameters smoothly
