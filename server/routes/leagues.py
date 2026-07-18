@@ -23,7 +23,7 @@ def get_leagues(db: Session = Depends(get_db)):
     return db.query(models.League).all()
 
 @router.get("/{league_id}", response_model=schemas.League)
-def get_leagues(league_id: int, db: Session = Depends(get_db)):
+def get_league(league_id: int, db: Session = Depends(get_db)):
     league =  db.query(models.League).filter_by(id=league_id).first()
     if not league:
         raise HTTPException(404, "No league found!")
