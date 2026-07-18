@@ -116,7 +116,9 @@ function CustomBetsOverview() {
     
     // Map current predictions or initialize blank ones for all players
     const form = players.map((player) => {
-      const existing = bet.predictions.find((p) => p.player_id === player.id);
+      const existing = Array.isArray(bet.predictions)
+        ? bet.predictions.find((p) => p.player_id === player.id)
+        : null;
       return {
         player_id: player.id,
         player_name: player.name,

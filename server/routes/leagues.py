@@ -398,6 +398,9 @@ def delta_initialize_matches_for_league(league_id: int, db: Session = Depends(ge
     db.commit()
     return {"status": "success", "new_matches_initialized": new_matches_added}
 
+@router.get("/{league_id}/custom-bets", response_model=list[schemas.CustomBet])
+def get_custom_bets(league_id: int, db: Session = Depends(get_db)):
+    return db.query(models.CustomBet).filter_by(league_id=league_id).all()
 
 @router.post("/{league_id}/custom-bets", response_model=schemas.CustomBet)
 def create_custom_bet(league_id: int, bet: schemas.CustomBetCreate, db: Session = Depends(get_db)):

@@ -64,7 +64,9 @@ function Leaderboard() {
     setSearchParams({ week: value });
   };
 
-  const currentPlayer = players.find((p) => p.player_id === currentPlayerID);
+  const currentPlayer = Array.isArray(players)
+    ? players.find((p) => p.player_id === currentPlayerID)
+    : null;
 
   const { data: leagueInfo, isLoading: isLeaguesLoading } = useQuery({
     queryKey: ["leagueInfo", id],
@@ -261,9 +263,11 @@ function PredictionsModal({
                   </h3>
                   <div className="flex flex-col gap-3.5">
                     {customBets.map((bet) => {
-                      const playerPred = bet.predictions.find(
-                        (p) => p.player_id === currentPlayerID
-                      );
+                      const playerPred = Array.isArray(bet.predictions)
+                        ? bet.predictions.find(
+                            (p) => p.player_id === currentPlayerID
+                          )
+                        : null;
                       const predText = playerPred?.prediction || t("leaderboard.na");
                       const actualText = bet.result || t("leaderboard.tbd");
                       const points = playerPred?.points || 0;
@@ -513,11 +517,13 @@ function CompareModal({
             <div className="grid grid-cols-[1fr_auto_1fr] gap-x-4 gap-y-3 items-center text-center">
               {ownerData.map((match) => {
                 // Find the exact matching game by ID instead of array index
-                const oppMatch = opponentData.find(
-                  (m) =>
-                    m.home_team === match.home_team &&
-                    m.away_team === match.away_team,
-                );
+                const oppMatch = Array.isArray(opponentData)
+                  ? opponentData.find(
+                      (m) =>
+                        m.home_team === match.home_team &&
+                        m.away_team === match.away_team,
+                    )
+                  : null;
 
                 const isMatchPlayed =
                   match.home_score !== null && match.away_score !== null;
