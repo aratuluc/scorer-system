@@ -31,13 +31,15 @@ jobs:
       - name: Build client bundle (Vite)
         run: npm run build --prefix client
 
-      # 3. Copy compiled dist folder to production server via rsync
+      # 3. Install SSH Key in agent (handles multi-line secrets securely)
+      - name: Install SSH Key
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+
+      # 4. Copy compiled dist folder to production server via rsync
       - name: Transfer build artifacts to server
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.PROD_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          
           # Determine path (defaulting to ~/score if PROD_PROJECT_PATH is not set)
           PROJECT_PATH="${{ secrets.PROD_PROJECT_PATH }}"
           if [ -z "$PROJECT_PATH" ]; then
@@ -45,12 +47,12 @@ jobs:
           fi
           
           # Create remote client/dist directory if it doesn't exist
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa -p ${{ secrets.PROD_SERVER_PORT || '22' }} \
+          ssh -o StrictHostKeyChecking=no -p ${{ secrets.PROD_SERVER_PORT || '22' }} \
             ${{ secrets.PROD_SERVER_USER }}@${{ secrets.PROD_SERVER_IP }} \
             "mkdir -p $PROJECT_PATH/client/dist"
           
           # Sync local dist/ folder to the remote project path
-          rsync -avz -e "ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa -p ${{ secrets.PROD_SERVER_PORT || '22' }}" \
+          rsync -avz -e "ssh -o StrictHostKeyChecking=no -p ${{ secrets.PROD_SERVER_PORT || '22' }}" \
             client/dist/ \
             ${{ secrets.PROD_SERVER_USER }}@${{ secrets.PROD_SERVER_IP }}:$PROJECT_PATH/client/dist/
 
