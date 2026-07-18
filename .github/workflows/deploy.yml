@@ -1,0 +1,90 @@
+name: CI/CD Deployment
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      # 1. Validate and lint Python backend
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install Python dependencies
+        run: |
+          pip install ruff
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Lint with Ruff
+        run: ruff check server/ --ignore=E501,F401
+      - name: Compile python check
+        run: python3 -m py_compile server/main.py server/routes/*.py server/services/*.py
+
+      # 2. Build React frontend on GitHub Runner (Saves production server resources)
+      - name: Set up Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+      - name: Install Node modules
+        run: npm ci --prefix client
+      - name: Build client bundle (Vite)
+        run: npm run build --prefix client
+
+      # 3. Copy compiled dist folder to production server via rsync
+      - name: Transfer build artifacts to server
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PROD_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          
+          # Determine path (defaulting to ~/score if PROD_PROJECT_PATH is not set)
+          PROJECT_PATH="${{ secrets.PROD_PROJECT_PATH }}"
+          if [ -z "$PROJECT_PATH" ]; then
+            PROJECT_PATH="$HOME/score"
+          fi
+          
+          # Create remote client/dist directory if it doesn't exist
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa -p ${{ secrets.PROD_SERVER_PORT || '22' }} \
+            ${{ secrets.PROD_SERVER_USER }}@${{ secrets.PROD_SERVER_IP }} \
+            "mkdir -p $PROJECT_PATH/client/dist"
+          
+          # Sync local dist/ folder to the remote project path
+          rsync -avz -e "ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa -p ${{ secrets.PROD_SERVER_PORT || '22' }}" \
+            client/dist/ \
+            ${{ secrets.PROD_SERVER_USER }}@${{ secrets.PROD_SERVER_IP }}:$PROJECT_PATH/client/dist/
+
+      # 4. Trigger remote docker compose deployment over SSH
+      - name: Deploy to Server via SSH
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.PROD_SERVER_IP }}
+          username: ${{ secrets.PROD_SERVER_USER }}
+          key: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.PROD_SERVER_PORT || 22 }}
+          script: |
+            PROJECT_PATH="${{ secrets.PROD_PROJECT_PATH }}"
+            if [ -z "$PROJECT_PATH" ]; then
+              PROJECT_PATH="$HOME/score"
+            fi
+            
+            echo "Navigating to project directory: $PROJECT_PATH"
+            cd "$PROJECT_PATH" || { echo "Directory not found! Check secrets.PROD_PROJECT_PATH"; exit 1; }
+            
+            echo "Fetching latest changes..."
+            git pull origin main
+            
+            echo "Rebuilding and starting Docker containers..."
+            docker compose build client api
+            docker compose up -d
+            
+            echo "Running master standings cache compilation..."
+            docker compose exec -T api python3 -c "import sys; sys.path.append('.'); from services.leaderboard_services import rebuild_entire_season_cache_wrapper; rebuild_entire_season_cache_wrapper(1)"
+            
+            echo "Deployment finished successfully!"
