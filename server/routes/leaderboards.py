@@ -46,3 +46,7 @@ def get_players_for_league(league_id:int, db: Session = Depends(get_db)):
         raise HTTPException(404, "League not found!")
     return lg.players
 
+@router.get("/{league_id}/custom-bets", response_model=list[schemas.CustomBet])
+def get_custom_bets(league_id: int, db: Session = Depends(get_db)):
+    return db.query(models.CustomBet).filter_by(league_id=league_id).all()
+

@@ -193,7 +193,7 @@ export const initializeMatchesDeltaAPI = async (league_id) => {
 };
 
 export const getCustomBets = async (league_id) => {
-  const response = await api.get(`/leagues/${league_id}/custom-bets`);
+  const response = await api.get(`/leaderboards/${league_id}/custom-bets`);
   return response.data;
 };
 
