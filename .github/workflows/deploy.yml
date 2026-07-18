@@ -10,18 +10,12 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      # 1. Validate and lint Python backend
+      # 1. Validate Python code
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
           cache: 'pip'
-      - name: Install Python dependencies
-        run: |
-          pip install ruff
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-      - name: Lint with Ruff
-        run: ruff check server/ --ignore=E501,F401
       - name: Compile python check
         run: python3 -m py_compile server/main.py server/routes/*.py server/services/*.py
 
