@@ -105,7 +105,7 @@ def normalize_to_ascii(text):
     }
     for turk, eng in replacements.items():
         text = text.replace(turk, eng)
-    return text.strip()
+    return text.replace(" ", "").strip()
 
 
 def process_weekly_csv(db: Session, league_id: int, df: pd.DataFrame, week_num: int):
@@ -228,32 +228,6 @@ def process_weekly_csv(db: Session, league_id: int, df: pd.DataFrame, week_num: 
                     pred_lookup[key] = new_pred
                 
                 continue # Row processed completely, skip staging entirely
-
-            # 🛠️ CORE ROUTING: If the match exists in production tables, run standard updates and skip staging
-            if match_id:
-                try:
-                    home, away = map(int, str(row[match_name]).split("-"))
-                except (ValueError, AttributeError):
-                    continue
-
-                key = (player_id, match_id)
-
-                if key in pred_lookup:
-                    existing_pred = pred_lookup[key]
-                    existing_pred.home_pred = home
-                    existing_pred.away_pred = away
-                else:
-                    new_pred = models.Prediction(
-                        player_id=player_id,
-                        match_id=match_id,
-                        home_pred=home,
-                        away_pred=away,
-                    )
-                    db.add(new_pred)
-                    count += 1
-                    pred_lookup[key] = new_pred
-                
-                continue # Clean early exit for this verified match
 
             # 🎪 LAYER 2: Fallback to Staging Pipeline if the match is truly new and unverified
             try:
