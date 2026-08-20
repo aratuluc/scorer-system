@@ -156,12 +156,15 @@ def process_weekly_csv(db: Session, league_id: int, df: pd.DataFrame, week_num: 
 
     # 3. Cache Match String Normalization BEFORE entering the loop
     match_list = {match_name: normalize_match_name(match_name, team_map) for match_name in df.columns[2:]}
+    print(f"[CSV DEBUG] CSV Headers to process: {list(df.columns[2:])}")
+    print(f"[CSV DEBUG] Resolved match columns map: {match_list}")
 
     # Pre-resolve and cache player names to optimize CPU usage
     resolved_player_cache = {}
     for raw_name in df[df.columns[1]].unique():
         normalized_raw = normalize_to_ascii(str(raw_name))
         resolved_player_cache[raw_name] = run_rapidfzf(normalized_raw, player_map, fuzz.token_set_ratio)
+    print(f"[CSV DEBUG] Resolved players cache: {resolved_player_cache}")
 
     # 4. Streamlined Cascading Processing Loop
     for index, row in df.iterrows():
@@ -169,6 +172,7 @@ def process_weekly_csv(db: Session, league_id: int, df: pd.DataFrame, week_num: 
         name = resolved_player_cache.get(raw_row_name)
         
         if not name:
+            print(f"[CSV DEBUG] Player name '{raw_row_name}' could not be matched. Skipping row.")
             unassigned_names.append({"name": str(raw_row_name).strip(), "preds": {**row[2:]}, "week": week_num})
             continue
 
@@ -186,6 +190,10 @@ def process_weekly_csv(db: Session, league_id: int, df: pd.DataFrame, week_num: 
             # 🏢 LAYER 1: Check if match is explicitly defined for THIS specific week
             if (home_team, away_team, week_num) in match_lookup:
                 match_id = match_lookup.get((home_team, away_team, week_num))
+                match_obj = match_map.get(match_id)
+                if match_obj:
+                    match_obj.scored_week = week_num
+                    print(f"[CSV DEBUG] Layer 1 match match for {home_team} vs {away_team} -> Match ID {match_id}, scored_week set to {week_num}")
             
             # 🔄 FALLBACK CROSS-REFERENCE: If not found, check if this fixture exists in ANY other week
             if not match_id:
@@ -199,6 +207,7 @@ def process_weekly_csv(db: Session, league_id: int, df: pd.DataFrame, week_num: 
                     match_id = any_week_match.id
                     # Force update the match context so it knows it is being scored for Week 4 now
                     any_week_match.scored_week = week_num
+                    print(f"[CSV DEBUG] Cross-week fallback match for {home_team} vs {away_team} -> Match ID {match_id}, scored_week set to {week_num}")
                     # Update our local memory caches so subsequent rows process instantly
                     match_lookup[(home_team, away_team, week_num)] = match_id
                     match_map[match_id] = any_week_match
@@ -230,6 +239,7 @@ def process_weekly_csv(db: Session, league_id: int, df: pd.DataFrame, week_num: 
                 continue # Row processed completely, skip staging entirely
 
             # 🎪 LAYER 2: Fallback to Staging Pipeline if the match is truly new and unverified
+            print(f"[CSV DEBUG] Match not matched to DB in week {week_num} or other weeks. Falling back to staging for {home_team} vs {away_team}")
             try:
                 home, away = map(int, str(row[match_name]).split("-"))
             except (ValueError, AttributeError):
