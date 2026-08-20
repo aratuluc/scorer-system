@@ -15,6 +15,7 @@ ENDPOINT = "https://arsiv.mackolik.com/AjaxHandlers/FixtureHandler.aspx"
 # THE AUTHORITATIVE TEAM NAME MAPPING MATRIX
 # =====================================================================
 TEAM_NAME_MAP = {
+    # International
     "Kore": "GüneyKore",
     "G.Afrika": "GüneyAfrika",
     "Meksika": "Meksika",
@@ -62,7 +63,27 @@ TEAM_NAME_MAP = {
     "İngiltere": "İngiltere",
     "Hırvatistan": "Hırvatistan",
     "Gana": "Gana",
-    "Panama": "Panama"
+    "Panama": "Panama",
+    
+    # Turkish Clubs
+    "Galatasaray": "Galatasaray",
+    "Çorum": "Çorum FK",
+    "Kasımpaşa": "Kasımpaşa",
+    "Trabzon": "Trabzonspor",
+    "Konya": "Konyaspor",
+    "Rize": "Çaykur Rizespor",
+    "Gençler": "Gençlerbirliği",
+    "Fenerbahçe": "Fenerbahçe",
+    "Gaziantep": "Gaziantep FK",
+    "Alanya": "Alanyaspor",
+    "Başakşehir": "Başakşehir FK",
+    "Kocaeli": "Kocaelispor",
+    "Amed": "Amed SK",
+    "Erzurum": "Erzurumspor FK",
+    "Beşiktaş": "Beşiktaş",
+    "Eyüp": "Eyüpspor",
+    "Samsun": "Samsunspor",
+    "Göztepe": "Göztepe"
 }
 
 def normalize_team_name(raw_name: str) -> str:

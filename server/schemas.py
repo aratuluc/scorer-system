@@ -110,7 +110,7 @@ class DisplayPrediction(PredictionBase):
     home_score: Optional[int]
     away_score: Optional[int]
     points: int 
-    scored_week: int
+    scored_week: Optional[int] = None
 
     @model_validator(mode='before')
     @classmethod
