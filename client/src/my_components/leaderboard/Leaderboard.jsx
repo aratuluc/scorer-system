@@ -98,16 +98,22 @@ function Leaderboard() {
             <SelectItem value="-1" className="font-semibold text-slate-800">
               {t("leaderboard.overall_weekly")}
             </SelectItem>
-            <SelectItem value="-2" className="font-semibold text-slate-800">
-              {t("leaderboard.overall_season")}
-            </SelectItem>
 
-            {maxWeek?.max_week > 0 && <div className="h-px bg-slate-100 my-1" />}
+            {/* <SelectItem value="-2" className="font-semibold text-slate-800">
+              {t("leaderboard.overall_season")}
+            </SelectItem> */}
+
+            {maxWeek?.max_week > 0 && (
+              <div className="h-px bg-slate-100 my-1" />
+            )}
 
             {Array.from({ length: maxWeek?.max_week || 0 }, (_, i) => {
               const weekNum = i + 1;
               return (
-                <SelectItem value={String(weekNum)} key={`week-dropdown-opt-${weekNum}`}>
+                <SelectItem
+                  value={String(weekNum)}
+                  key={`week-dropdown-opt-${weekNum}`}
+                >
                   {`${t("leaderboard.week")} ${weekNum}`}
                 </SelectItem>
               );
@@ -212,7 +218,8 @@ function PredictionsModal({
   const customBetsQuery = useQuery({
     queryKey: ["customBets", leagueID],
     queryFn: () => getCustomBets(leagueID),
-    enabled: currentPlayerID !== null && (currentWeek === 0 || currentWeek === -2),
+    enabled:
+      currentPlayerID !== null && (currentWeek === 0 || currentWeek === -2),
   });
   const customBets = customBetsQuery.data || [];
   const [comparedPlayerID, setComparedPlayerID] = useState(null);
@@ -255,139 +262,62 @@ function PredictionsModal({
             <div className="flex flex-col gap-3 mt-4 overflow-y-auto max-h-[60vh] p-1">
               {result.isLoading && <Spinner />}
 
-              {(currentWeek === 0 || currentWeek === -2) && customBets.length > 0 && (
-                <div className="mb-6 bg-white p-4 border border-gray-200 rounded-xl shadow-sm">
-                  <h3 className="font-extrabold text-sm text-slate-800 mb-3 flex items-center gap-1.5 border-b pb-2">
-                    <Trophy className="w-4 h-4 text-amber-500" />
-                    <span>{t("leaderboard.season_bets")}</span>
-                  </h3>
-                  <div className="flex flex-col gap-3.5">
-                    {customBets.map((bet) => {
-                      const playerPred = Array.isArray(bet.predictions)
-                        ? bet.predictions.find(
-                            (p) => p.player_id === currentPlayerID
-                          )
-                        : null;
-                      const predText = playerPred?.prediction || t("leaderboard.na");
-                      const actualText = bet.result || t("leaderboard.tbd");
-                      const points = playerPred?.points || 0;
-                      const badgeColor =
-                        points > 0
-                          ? "bg-green-50 text-green-700 border-green-200"
-                          : "bg-gray-50 text-gray-400 border-gray-200";
-
-                      return (
-                        <div
-                          key={`custom-bet-modal-${bet.id}`}
-                          className="flex flex-col gap-2 pb-3 last:pb-0 border-b last:border-0 border-slate-100 sm:flex-row sm:items-center sm:justify-between"
-                        >
-                          <div className="font-bold text-slate-700 text-xs sm:flex-[2] sm:pr-2">
-                            {bet.title}
-                          </div>
-                          
-                          <div className="flex gap-4 text-xs sm:flex-[2] justify-start sm:justify-center">
-                            <div className="flex flex-col">
-                              <span className="text-[9px] text-gray-400 uppercase tracking-wider font-semibold">
-                                {t("leaderboard.actual")}
-                              </span>
-                              <span className="font-bold text-slate-600">
-                                {actualText}
-                              </span>
-                            </div>
-                            <div className="flex flex-col">
-                              <span className="text-[9px] text-gray-400 uppercase tracking-wider font-semibold">
-                                {t("leaderboard.predicted")}
-                              </span>
-                              <span className="font-bold text-blue-600">
-                                {predText}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="flex sm:flex-1 sm:justify-end items-center">
-                            <span
-                              className={`px-2.5 py-0.5 rounded border text-[10px] font-extrabold font-mono text-center ${badgeColor}`}
-                            >
-                              {points} {t("leaderboard.pts")}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {result.data?.length === 0 && customBets.length === 0 && (
-                <div className="text-center text-gray-500 py-4">
-                  {t("leaderboard.no_predictions")}
-                </div>
-              )}
-
-              {currentWeek !== -2 && Object.entries(groupedPredictions).map(
-                ([weekLabel, weekMatches]) => (
-                  <div key={weekLabel} className="mb-6 last:mb-0">
-                    <h3 className="font-bold text-lg text-gray-700 mb-3 border-b pb-1 sticky top-0 bg-gray-100 z-10">
-                      {weekLabel}
+              {(currentWeek === 0 || currentWeek === -2) &&
+                customBets.length > 0 && (
+                  <div className="mb-6 bg-white p-4 border border-gray-200 rounded-xl shadow-sm">
+                    <h3 className="font-extrabold text-sm text-slate-800 mb-3 flex items-center gap-1.5 border-b pb-2">
+                      <Trophy className="w-4 h-4 text-amber-500" />
+                      <span>{t("leaderboard.season_bets")}</span>
                     </h3>
-                    <div className="flex flex-col gap-3">
-                      {weekMatches.map((prediction) => {
-                        const actualScore =
-                          prediction.home_score !== null &&
-                          prediction.away_score !== null
-                            ? `${prediction.home_score} - ${prediction.away_score}`
-                            : t("leaderboard.tbd");
-                        const predScore =
-                          prediction.home_pred !== null &&
-                          prediction.away_pred !== null
-                            ? `${prediction.home_pred} - ${prediction.away_pred}`
-                            : t("leaderboard.na");
+                    <div className="flex flex-col gap-3.5">
+                      {customBets.map((bet) => {
+                        const playerPred = Array.isArray(bet.predictions)
+                          ? bet.predictions.find(
+                              (p) => p.player_id === currentPlayerID,
+                            )
+                          : null;
+                        const predText =
+                          playerPred?.prediction || t("leaderboard.na");
+                        const actualText = bet.result || t("leaderboard.tbd");
+                        const points = playerPred?.points || 0;
                         const badgeColor =
-                          prediction.points > 0
-                            ? "bg-green-100 text-green-700"
-                            : "bg-gray-100 text-gray-500";
+                          points > 0
+                            ? "bg-green-50 text-green-700 border-green-200"
+                            : "bg-gray-50 text-gray-400 border-gray-200";
 
-                        // Responsive Mobile Layout Matrix applied cleanly here inside the loop:
                         return (
                           <div
-                            key={`pred-row-${prediction.id}`}
-                            className="flex flex-col gap-3 p-4 bg-white border border-gray-200 rounded-lg shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-3"
+                            key={`custom-bet-modal-${bet.id}`}
+                            className="flex flex-col gap-2 pb-3 last:pb-0 border-b last:border-0 border-slate-100 sm:flex-row sm:items-center sm:justify-between"
                           >
-                            {/* 1. Teams Block */}
-                            <div className="font-semibold text-gray-800 text-center sm:text-left sm:flex-[2] sm:truncate sm:pr-2">
-                              {prediction.home_team}
-                              <span className="text-gray-400 font-normal text-xs mx-2">
-                                vs
-                              </span>
-                              {prediction.away_team}
+                            <div className="font-bold text-slate-700 text-xs sm:flex-[2] sm:pr-2">
+                              {bet.title}
                             </div>
 
-                            {/* 2. Score Metrics Grid */}
-                            <div className="flex justify-center gap-6 text-sm sm:flex-[2]">
-                              <div className="flex flex-col items-center">
-                                <span className="text-[10px] text-gray-400 uppercase tracking-wider">
+                            <div className="flex gap-4 text-xs sm:flex-[2] justify-start sm:justify-center">
+                              <div className="flex flex-col">
+                                <span className="text-[9px] text-gray-400 uppercase tracking-wider font-semibold">
                                   {t("leaderboard.actual")}
                                 </span>
-                                <span className="font-bold text-gray-700">
-                                  {actualScore}
+                                <span className="font-bold text-slate-600">
+                                  {actualText}
                                 </span>
                               </div>
-                              <div className="flex flex-col items-center">
-                                <span className="text-[10px] text-gray-400 uppercase tracking-wider">
+                              <div className="flex flex-col">
+                                <span className="text-[9px] text-gray-400 uppercase tracking-wider font-semibold">
                                   {t("leaderboard.predicted")}
                                 </span>
-                                <span className="font-semibold text-blue-600">
-                                  {predScore}
+                                <span className="font-bold text-blue-600">
+                                  {predText}
                                 </span>
                               </div>
                             </div>
 
-                            {/* 3. Points Badge Anchor */}
-                            <div className="flex justify-center sm:flex-1 sm:justify-end">
+                            <div className="flex sm:flex-1 sm:justify-end items-center">
                               <span
-                                className={`px-3 py-1 rounded text-xs font-bold w-full text-center sm:w-auto ${badgeColor}`}
+                                className={`px-2.5 py-0.5 rounded border text-[10px] font-extrabold font-mono text-center ${badgeColor}`}
                               >
-                                +{prediction.points} {t("leaderboard.pts")}
+                                {points} {t("leaderboard.pts")}
                               </span>
                             </div>
                           </div>
@@ -395,8 +325,88 @@ function PredictionsModal({
                       })}
                     </div>
                   </div>
-                ),
+                )}
+
+              {result.data?.length === 0 && customBets.length === 0 && (
+                <div className="text-center text-gray-500 py-4">
+                  {t("leaderboard.no_predictions")}
+                </div>
               )}
+
+              {currentWeek !== -2 &&
+                Object.entries(groupedPredictions).map(
+                  ([weekLabel, weekMatches]) => (
+                    <div key={weekLabel} className="mb-6 last:mb-0">
+                      <h3 className="font-bold text-lg text-gray-700 mb-3 border-b pb-1 sticky top-0 bg-gray-100 z-10">
+                        {weekLabel}
+                      </h3>
+                      <div className="flex flex-col gap-3">
+                        {weekMatches.map((prediction) => {
+                          const actualScore =
+                            prediction.home_score !== null &&
+                            prediction.away_score !== null
+                              ? `${prediction.home_score} - ${prediction.away_score}`
+                              : t("leaderboard.tbd");
+                          const predScore =
+                            prediction.home_pred !== null &&
+                            prediction.away_pred !== null
+                              ? `${prediction.home_pred} - ${prediction.away_pred}`
+                              : t("leaderboard.na");
+                          const badgeColor =
+                            prediction.points > 0
+                              ? "bg-green-100 text-green-700"
+                              : "bg-gray-100 text-gray-500";
+
+                          // Responsive Mobile Layout Matrix applied cleanly here inside the loop:
+                          return (
+                            <div
+                              key={`pred-row-${prediction.id}`}
+                              className="flex flex-col gap-3 p-4 bg-white border border-gray-200 rounded-lg shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-3"
+                            >
+                              {/* 1. Teams Block */}
+                              <div className="font-semibold text-gray-800 text-center sm:text-left sm:flex-[2] sm:truncate sm:pr-2">
+                                {prediction.home_team}
+                                <span className="text-gray-400 font-normal text-xs mx-2">
+                                  vs
+                                </span>
+                                {prediction.away_team}
+                              </div>
+
+                              {/* 2. Score Metrics Grid */}
+                              <div className="flex justify-center gap-6 text-sm sm:flex-[2]">
+                                <div className="flex flex-col items-center">
+                                  <span className="text-[10px] text-gray-400 uppercase tracking-wider">
+                                    {t("leaderboard.actual")}
+                                  </span>
+                                  <span className="font-bold text-gray-700">
+                                    {actualScore}
+                                  </span>
+                                </div>
+                                <div className="flex flex-col items-center">
+                                  <span className="text-[10px] text-gray-400 uppercase tracking-wider">
+                                    {t("leaderboard.predicted")}
+                                  </span>
+                                  <span className="font-semibold text-blue-600">
+                                    {predScore}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* 3. Points Badge Anchor */}
+                              <div className="flex justify-center sm:flex-1 sm:justify-end">
+                                <span
+                                  className={`px-3 py-1 rounded text-xs font-bold w-full text-center sm:w-auto ${badgeColor}`}
+                                >
+                                  +{prediction.points} {t("leaderboard.pts")}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ),
+                )}
             </div>
           </DialogDescription>
         </DialogHeader>
