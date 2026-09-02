@@ -16,9 +16,9 @@ def main():
 def evaluate_score(true_home: int, true_away: int, prediction_home: int, prediction_away: int):
     # Fallback missing predictions to a baseline default of 3-3
     if prediction_home is None: 
-        prediction_home = 3
+        prediction_home = 4
     if prediction_away is None: 
-        prediction_away = 3
+        prediction_away = 4
       
     # Determine actual match outcome
     if true_home > true_away:

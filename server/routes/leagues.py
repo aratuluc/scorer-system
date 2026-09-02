@@ -261,8 +261,8 @@ def autofill_predictions(league_id:int, db:Session = Depends(get_db)):
                 new_pred = models.Prediction(
                     player_id=p_id, 
                     match_id=match.id, 
-                    home_pred=None, 
-                    away_pred=None 
+                    home_pred=4, 
+                    away_pred=4 
                 )
                 db.add(new_pred)
                 i += 1
