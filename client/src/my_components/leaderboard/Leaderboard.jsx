@@ -95,9 +95,10 @@ function Leaderboard() {
             <SelectItem value="0" className="font-semibold text-slate-800">
               {t("leaderboard.overall_entire")}
             </SelectItem>
-            <SelectItem value="-1" className="font-semibold text-slate-800">
+
+            {/* <SelectItem value="-1" className="font-semibold text-slate-800">
               {t("leaderboard.overall_weekly")}
-            </SelectItem>
+            </SelectItem> */}
 
             {/* <SelectItem value="-2" className="font-semibold text-slate-800">
               {t("leaderboard.overall_season")}
