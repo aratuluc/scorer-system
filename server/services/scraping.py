@@ -16,7 +16,9 @@ ENDPOINT = "https://arsiv.mackolik.com/AjaxHandlers/FixtureHandler.aspx"
 def get_current_week(db: Session, link_id: int):
     link = db.query(models.LeagueLink).filter(models.LeagueLink.id == link_id).first()
 
-    response = requests.get(ENDPOINT, {"command": "getWeeks", "id": link.link})
+    response = requests.get(ENDPOINT, {"command": "getWeeks", "id": link.link},
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64 AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"},
+            timeout=10)
 
     if response.status_code != 200:
         raise Exception(f"Failed while trying to initialize weeks for league {link.link}")
@@ -194,7 +196,9 @@ def refresh_all_weeks(league_id: int, db: Session):
         # Loop through using the external endpoint's calendar sequence index
         for week_num in range(get_current_week(db, endpoint.id) + 1):
 
-            response = requests.get(ENDPOINT, {"command": "getMatches", "id": endpoint.link, "week": week_num})
+            response = requests.get(ENDPOINT, {"command": "getMatches", "id": endpoint.link, "week": week_num},
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64 AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"},
+            timeout=10)
             lst = clean_response(response.text)
             for mac in lst:
 
@@ -236,7 +240,9 @@ def save_results_for_week(fixture_week_num, league_id, db: Session):
     match_map = {(a.home_team, a.away_team, a.fixture_week): a for a in league_db.matches}
     
     for endpoint in league_db.links:
-        response = requests.get(ENDPOINT, {"command": "getMatches", "id": endpoint.link, "week": fixture_week_num})
+        response = requests.get(ENDPOINT, {"command": "getMatches", "id": endpoint.link, "week": fixture_week_num},
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64 AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"},
+            timeout=10)
         lst = clean_response(response.text)
 
         for mac in lst:

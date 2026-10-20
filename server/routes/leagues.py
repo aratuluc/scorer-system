@@ -330,8 +330,11 @@ def delta_initialize_weeks_for_league(league_id: int, db: Session = Depends(get_
         existing_week_nums = {w.week_num for w in link.weeks}
         
         # 2. Grab the live week payload from the source endpoint
-        response = requests.get(scraping.ENDPOINT, {"command": "getWeeks", "id": link.link})
+        response = requests.get(scraping.ENDPOINT, {"command": "getWeeks", "id": link.link},
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64 AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"},
+            timeout=10)
         if response.status_code != 200:
+            print(response)
             raise HTTPException(500, f"Failed while trying to fetch weeks for link {link.link}")
             
         parsed_weeks = scraping.parse_week_data(response.text)
