@@ -1,15 +1,13 @@
-import os
 import datetime
 from zoneinfo import ZoneInfo
 from apscheduler.schedulers.background import BackgroundScheduler
-from dotenv import load_dotenv
 
 import models
 from database import SessionLocal
 from services import leaderboard_services, scraping, scoring
+from config import NOTIFICATION_URL
 
-load_dotenv()
-notif_url = os.getenv("NOTIFICATION_URL")
+notif_url = NOTIFICATION_URL
 
 scheduler = BackgroundScheduler()
 

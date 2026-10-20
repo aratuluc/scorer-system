@@ -29,6 +29,8 @@ jobs:
         run: npm ci --prefix client
       - name: Build client bundle (Vite)
         run: npm run build --prefix client
+        env:
+          VITE_API_BASE_URL: https://api.arat.dev
 
       # 3. Install SSH Key in agent (handles multi-line secrets securely)
       - name: Install SSH Key

@@ -1,15 +1,11 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
-from dotenv import load_dotenv
-import os
-
-load_dotenv()
+from config import DATABASE_URL
 
 class Base(DeclarativeBase):
     pass
 
-# This creates a file 'scorer.db' in your server folder
-SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
+SQLALCHEMY_DATABASE_URL = DATABASE_URL
 
 # connect_args is needed only for SQLite
 engine = create_engine(

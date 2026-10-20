@@ -2,13 +2,10 @@ import jwt
 from datetime import datetime, timedelta
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from dotenv import load_dotenv
-import os
-
-load_dotenv()
+from config import ADMIN_SECRET
 
 # 1. THE SECRET CODES (Never share the secret key in production!)
-SECRET_KEY = os.getenv("ADMIN_SECRET")
+SECRET_KEY = ADMIN_SECRET
 ALGORITHM = "HS256" 
 
 # 2. THE SIGNPOST (Tells Swagger where the login door is)

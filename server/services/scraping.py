@@ -7,6 +7,9 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 import re
 import models, schemas
+import time
+import random
+
 
 ENDPOINT = "https://arsiv.mackolik.com/AjaxHandlers/FixtureHandler.aspx"
 
@@ -33,24 +36,54 @@ def get_current_week(db: Session, link_id: int):
 def get_all_matches(endpoint: models.LeagueLink):
     matches = []
     i = 1
-    print(f"Starting the initialization process for {endpoint.alias or endpoint.link}")
+    print(f"\n--- Starting matches sync for link {endpoint.alias or endpoint.link} ---", flush=True)
+    
+    # 1. Use a Session to persist connections and keep cookies between requests
+    session = requests.Session()
+    session.headers.update({
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    })
+    
     while True:
-        response = requests.get(ENDPOINT, {"command": "getMatches", "id": endpoint.link, "week": i})
+        try:
+            print(f"Fetching week {i}...", flush=True)
+            response = session.get(
+                ENDPOINT, 
+                params={"command": "getMatches", "id": endpoint.link, "week": i},
+                timeout=10 
+            )
 
-        if response.status_code != 200:
-            raise Exception(f"Failed to retrieve data for week {i}")
-        
-        games = parse_matches_for_week(response.text, i)
+            # 2. Catch the Rate Limit and Retry!
+            if response.status_code == 429:
+                print(f"[RATE LIMITED] Hit a 429 on week {i}. Backing off for 10 seconds...", flush=True)
+                time.sleep(10)
+                continue  # 'continue' skips the rest of the loop and retries the exact same 'i'
 
-        if not games:
-            print(f"Stopped at week {i-1}")
-            break
+            if response.status_code != 200:
+                print(f"[ERROR] Week {i} returned HTTP {response.status_code}", flush=True)
+                raise Exception(f"Failed to retrieve data for week {i}")
+            
+            games = parse_matches_for_week(response.text, i)
 
-        for game in games:
-            game["league_link_id"] = endpoint.id
+            if not games:
+                print(f"Stopped at week {i-1}. No more games found.", flush=True)
+                break
 
-        matches += games
-        i += 1
+            for game in games:
+                game["league_link_id"] = endpoint.id
+
+            matches += games
+            i += 1
+            
+            # 3. Add Jitter: Sleep a random amount between 1.5 and 3.0 seconds
+            sleep_time = random.uniform(1.5, 3.0)
+            time.sleep(sleep_time)
+            
+        except requests.exceptions.RequestException as e:
+            print(f"[NETWORK EXCEPTION] Requests library failed on week {i}: {str(e)}", flush=True)
+            raise Exception(f"Requests network error on week {i}: {str(e)}")
+            
+    print(f"Successfully extracted {len(matches)} total matches.", flush=True)
     return matches
 
 def parse_matches_for_week(text: str, weeknum: int) -> list[dict]:
@@ -135,7 +168,9 @@ def initialize_weeks(db: Session, league: models.League):
     for link in links:
         link.weeks.clear()
         db.flush() 
-        response = requests.get(ENDPOINT, {"command": "getWeeks", "id": link.link})
+        response = requests.get(ENDPOINT, {"command": "getWeeks", "id": link.link},
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64 AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"},
+            timeout=10)
         if response.status_code != 200:
             raise Exception(f"Failed while trying to initialize weeks for league {link.link}")
         weeks = parse_week_data(response.text)

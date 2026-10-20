@@ -1,6 +1,7 @@
-# Secrets
+# Environment & Secrets
 .env
-.env.local
+.env.*
+!.env.example
 
 #Local Config
 .vscode

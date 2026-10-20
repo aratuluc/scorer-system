@@ -1,18 +1,15 @@
-
 from database import engine
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import models, schemas, database
-from dotenv import load_dotenv
-import os
 import requests
+from config import ALLOWED_ORIGINS, NOTIFICATION_URL
 from services import cron, security
 from routes import leagues, leaderboards, auth, predictions
 
-load_dotenv()
-origins = os.getenv("ALLOWED_ORIGINS", "").split(",")
-notif_url = os.getenv("NOTIFICATION_URL")
+origins = ALLOWED_ORIGINS
+notif_url = NOTIFICATION_URL
 
 models.Base.metadata.create_all(bind=engine)
 
